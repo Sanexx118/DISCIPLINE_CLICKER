@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discipline Clicker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Montserrat', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    
+    .dark-purple-bg {
+      background: radial-gradient(circle at center, #1e0b36 0%, #120524 40%, #090214 75%, #030008 100%);
+    }
+
+    /* Clicker Square Button Styling */
+    .clicker-btn-sq {
+      box-shadow: 0 0 35px rgba(168, 85, 247, 0.35), inset 0 2px 4px rgba(255, 255, 255, 0.2);
+      transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.15s ease;
+    }
+
+    .clicker-btn-sq:active {
+      transform: scale(0.92);
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+    }
+
+    /* Score Counter Pulse Animation */
+    @keyframes scorePulseAnim {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); filter: drop-shadow(0 0 15px #c084fc); }
+      100% { transform: scale(1); }
+    }
+
+    .animate-score {
+      animation: scorePulseAnim 0.25s ease-in-out;
+    }
+
+    /* MINECRAFT RUNNER ANIMATION */
+    @keyframes minecraftRun {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-4px) rotate(-3deg); }
+    }
+
+    .animate-minecraft-run {
+      animation: minecraftRun 0.25s infinite ease-in-out;
+    }
+
+    /* REALISTIC MILK SPLASH & DRIP ANIMATIONS (LOCAL TO BUTTON) */
+    @keyframes milkBlobImpact {
+      0% {
+        transform: scale(0.2) translateY(-10px);
+        opacity: 0.95;
+      }
+      35% {
+        transform: scale(1.3) translateY(2px);
+        opacity: 0.9;
+      }
+      100% {
+        transform: scale(1.4, 2.2) translateY(35px);
+        opacity: 0;
+      }
+    }
+
+    @keyframes milkMicroDroplet {
+      0% {
+        transform: translate(0, 0) scale(0.5);
+        opacity: 1;
+      }
+      60% {
+        opacity: 0.8;
+      }
+      100% {
+        transform: translate(var(--dx), var(--dy)) scale(1.2);
+        opacity: 0;
+      }
+    }
+
+    @keyframes milkRippleWave {
+      0% {
+        transform: scale(0.2);
+        opacity: 0.8;
+      }
+      100% {
+        transform: scale(2.5);
+        opacity: 0;
+      }
+    }
+
+    .milk-blob {
+      position: fixed;
+      pointer-events: none;
+      background: radial-gradient(circle at 35% 35%, #ffffff 0%, #f3e8ff 65%, #e9d5ff 100%);
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+      animation: milkBlobImpact 0.75s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+      z-index: 9999;
+    }
+
+    .milk-droplet {
+      position: fixed;
+      pointer-events: none;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+      animation: milkMicroDroplet 0.55s ease-out forwards;
+      z-index: 10000;
+    }
+
+    .milk-ripple {
+      position: fixed;
+      pointer-events: none;
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      animation: milkRippleWave 0.45s ease-out forwards;
+      z-index: 9998;
+    }
+
+    /* Floating Point Numbers */
+    .floating-text {
+      position: fixed;
+      pointer-events: none;
+      font-weight: 900;
+      color: #e9d5ff;
+      text-shadow: 0 0 10px #c084fc, 0 0 20px #9333ea;
+      animation: floatUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      z-index: 50;
+    }
+
+    @keyframes floatUp {
+      0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(0.9);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -120px) scale(1.2);
+      }
+    }
+
+    /* Smooth Fade Animations */
+    .modal-anim {
+      animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .backdrop-blur-custom {
+      backdrop-filter: blur(12px);
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Absolute Centering Fix for Header Score Counter */
+    .centered-counter {
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+    }
+
+    /* Smooth Leaderboard Unfold Animation */
+    .leaderboard-panel {
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      max-width: 0px;
+      opacity: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translateX(20px);
+    }
+
+    .leaderboard-panel.open {
+      max-width: 320px;
+      opacity: 1;
+      white-space: normal;
+      pointer-events: auto;
+      transform: translateX(0px);
+    }
+
+    /* GLOBAL ANIMATIONS DISABLED CLASS */
+    body.no-animations *:not(.centered-counter),
+    body.no-animations *:not(.centered-counter)::before,
+    body.no-animations *:not(.centered-counter)::after {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    body.no-animations .clicker-btn-sq:active,
+    body.no-animations .clicker-btn-sq:hover,
+    body.no-animations button:active,
+    body.no-animations button:hover {
+      transform: none !important;
+    }
+  </style>
+</head>
+<body class="dark-purple-bg min-h-screen text-purple-100 flex flex-col justify-between overflow-hidden relative">
+
+  <!-- ==================== DISCORD LOGIN MODAL ==================== -->
+  <div id="discord-auth-modal" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-sm w-full p-8 shadow-[0_0_50px_rgba(147,51,234,0.4)] text-center modal-anim flex flex-col items-center">
+      <h2 class="text-2xl font-black text-purple-200 mb-2">Авторизация</h2>
+      <p class="text-xs text-purple-300/80 mb-6">Для игры и сохранения рекорда в таблице лидеров войдите через свой аккаунт Discord.</p>
+      
+      <button onclick="loginWithDiscord()" class="w-full py-3.5 px-6 bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 cursor-pointer">
+        <svg class="w-5 h-5 fill-current" viewBox="0 0 127.14 96.36">
+          <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1,105.25,105.25,0,0,0,32.19-16.14c2.63-27.29-4.51-51.2-19.45-72.15ZM42.45,65.69C36.18,65.69,31,60,31,53s5.18-12.72,11.45-12.72S53.9,46,53.88,53,48.72,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.2,60,73.2,53s5.18-12.72,11.49-12.72S96.18,46,96.15,53,91,65.69,84.69,65.69Z"/>
+        </svg>
+        Войти через Discord
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== UNIQ LOADING SCREEN ==================== -->
+  <div id="loader-screen" class="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6 text-purple-100 transition-opacity duration-500">
+    <h1 class="text-3xl font-extrabold tracking-wider text-purple-400 mb-4 text-center drop-shadow-[0_0_12px_rgba(192,132,252,0.6)]">DISCIPLINE CLICKER</h1>
+    <p id="loader-quote" class="text-purple-300/80 text-sm italic text-center max-w-xs h-12 flex items-center justify-center transition-all mb-8">
+      «Дисциплина — это решение делать то, чего не хочется делать, чтобы достичь того, чего хочется достичь.»
+    </p>
+
+    <!-- Loading Bar with Animated Minecraft Runner -->
+    <div class="relative w-72 h-4 bg-purple-950/90 rounded-full overflow-visible border border-purple-800/60 shadow-inner my-6">
+      <div id="loader-bar" class="h-full bg-gradient-to-r from-purple-600 to-fuchsia-500 rounded-full w-0 transition-all duration-200"></div>
+      
+      <!-- Minecraft Silhouette Runner -->
+      <div id="runner-container" class="absolute -top-12 left-0 transition-all duration-200 -translate-x-1/2 flex flex-col items-center pointer-events-none">
+        <span id="loader-percent" class="text-[10px] font-black text-purple-200 mb-0.5 bg-zinc-950/80 px-1 rounded">0%</span>
+        <svg class="w-8 h-10 drop-shadow-[0_0_8px_rgba(168,85,247,0.8)] animate-minecraft-run" viewBox="0 0 16 24" fill="#2d124f">
+          <rect x="4" y="0" width="8" height="8" rx="0.5"/>
+          <rect x="4" y="8" width="8" height="8"/>
+          <rect x="1" y="8" width="3" height="7"/>
+          <rect x="12" y="8" width="3" height="7"/>
+          <rect x="4" y="16" width="3" height="8"/>
+          <rect x="9" y="16" width="3" height="8"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOP NAVIGATION / HEADER ==================== -->
+  <header class="w-full px-4 sm:px-8 py-4 flex items-center justify-between z-30 relative">
+    
+    <!-- Left: Hamburger Menu Button & Dropdown -->
+    <div class="relative">
+      <button onclick="toggleMenu()" class="p-3 bg-purple-950/80 hover:bg-purple-900/80 text-purple-200 rounded-2xl shadow-lg border border-purple-700/50 focus:outline-none transition-all flex flex-col justify-around w-12 h-12 items-center cursor-pointer active:scale-95">
+        <span class="w-6 h-0.5 bg-purple-200 rounded-full"></span>
+        <span class="w-6 h-0.5 bg-purple-200 rounded-full"></span>
+        <span class="w-6 h-0.5 bg-purple-200 rounded-full"></span>
+      </button>
+
+      <!-- Dropdown Menu -->
+      <div id="dropdown-menu" class="hidden absolute top-14 left-0 w-56 bg-zinc-950/95 border border-purple-800/80 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col z-40 backdrop-blur-md modal-anim">
+        <button onclick="openModal('upgrades-modal')" class="px-5 py-3.5 text-left font-bold text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between transition-colors">
+          <span>Прокачка</span>
+          <span class="text-xs text-purple-300 bg-purple-900/60 border border-purple-700/50 px-2 py-0.5 rounded-full">Улучшения</span>
+        </button>
+        <button onclick="openModal('shop-modal')" class="px-5 py-3.5 text-left font-bold text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between transition-colors">
+          <span>Магазин</span>
+          <span class="text-xs text-purple-300 bg-purple-900/60 border border-purple-700/50 px-2 py-0.5 rounded-full">Скины</span>
+        </button>
+        <button onclick="openModal('settings-modal')" class="px-5 py-3.5 text-left font-bold text-purple-200 hover:bg-purple-900/50 flex items-center justify-between transition-colors">
+          <span>Настройки</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Center: Perfectly Centered Counter Container -->
+    <div class="absolute centered-counter top-4 flex flex-col items-center pointer-events-none z-30">
+      <div class="bg-purple-950/80 backdrop-blur-md border border-purple-700/60 rounded-2xl px-8 py-2 text-center shadow-[0_0_20px_rgba(147,51,234,0.25)] min-w-[200px]">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-purple-300/80 block">Очки Дисциплины</span>
+        <span id="score-display" class="text-3xl sm:text-4xl font-black text-white tracking-tight drop-shadow-[0_0_10px_rgba(192,132,252,0.8)] leading-tight inline-block transition-transform">0</span>
+        <span id="dps-display" class="text-xs font-semibold text-purple-400 block mt-0.5">+0 DP/с</span>
+      </div>
+    </div>
+
+    <!-- Right: Manual Save with Cooldown, Auto-Save Timer & Leaderboard Button -->
+    <div class="flex items-center gap-2 z-30">
+      <button id="manual-save-btn" onclick="manualSave()" class="px-3 sm:px-4 py-2.5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold text-xs sm:text-sm rounded-xl shadow-md border border-purple-600/50 transition-all flex items-center justify-center cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100">
+        Сохранить
+      </button>
+      <div class="bg-purple-950/60 border border-purple-800/60 rounded-xl px-2.5 py-1.5 text-center shadow-xs">
+        <span class="text-[10px] font-bold text-purple-400 block leading-none">АВТО</span>
+        <span id="autosave-timer" class="text-xs font-black text-purple-200">60s</span>
+      </div>
+      <!-- Leaderboard Toggle Button -->
+      <button onclick="toggleLeaderboard()" class="px-3 py-2.5 bg-purple-700 hover:bg-purple-600 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md border border-purple-500/50 transition-all cursor-pointer active:scale-95">
+        Топ
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN GAMEPLAY AREA ==================== -->
+  <main class="flex-1 flex items-center justify-center relative p-4">
+    
+    <!-- Centered Game Container -->
+    <div class="relative flex items-center justify-center w-full max-w-4xl">
+
+      <!-- Clicker Container -->
+      <div class="relative flex flex-col items-center justify-center z-20">
+        <button id="clicker-btn" onclick="handleClick(event)" class="clicker-btn-sq relative w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-purple-950/40 border-2 border-purple-500/70 hover:scale-105 active:scale-95 transition-all duration-100 select-none overflow-hidden cursor-pointer shadow-[0_0_30px_rgba(168,85,247,0.3)] flex items-center justify-center">
+          <!-- Main Dynamic Skin Image -->
+          <img id="main-clicker-img" src="resurs/eskere.png" alt="Discipline" class="w-full h-full object-cover pointer-events-none transition-all" onerror="handleImageError(this)">
+        </button>
+
+        <!-- Cooldown & Energy Bars Container -->
+        <div class="w-36 sm:w-44 mt-3 flex flex-col items-center gap-2">
+          <!-- Cooldown Bar -->
+          <div class="w-full">
+            <div class="w-full h-2 bg-purple-950/80 rounded-full overflow-hidden border border-purple-800/60 p-0.5 shadow-inner">
+              <div id="cooldown-bar" class="h-full bg-gradient-to-r from-purple-600 to-fuchsia-500 rounded-full w-full transition-all duration-75"></div>
+            </div>
+            <span id="cooldown-text" class="text-[10px] font-bold text-purple-300/80 block text-center mt-0.5">Готов к клику</span>
+          </div>
+
+          <!-- Energy Bar -->
+          <div class="w-full">
+            <div class="w-full h-2.5 bg-purple-950/90 rounded-full overflow-hidden border border-amber-500/50 p-0.5 shadow-inner">
+              <div id="energy-bar" class="h-full bg-gradient-to-r from-amber-500 to-yellow-300 rounded-full w-full transition-all duration-150"></div>
+            </div>
+            <div class="flex justify-between items-center text-[10px] font-bold text-amber-300/90 px-0.5 mt-0.5">
+              <span>Энергия</span>
+              <span id="energy-text">100 / 100</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Leaderboard Side Panel -->
+      <div id="leaderboard-panel" class="leaderboard-panel absolute left-1/2 ml-28 sm:ml-36 bg-zinc-950/90 border border-purple-800/80 rounded-3xl p-4 shadow-[0_0_30px_rgba(147,51,234,0.3)] backdrop-blur-md z-10 w-72">
+        <div class="flex justify-between items-center pb-2 mb-2 border-b border-purple-900/60">
+          <h3 class="font-extrabold text-xs text-purple-200">Таблица Лидеров</h3>
+          <button onclick="toggleLeaderboard()" class="text-purple-400 hover:text-purple-200 text-xs font-bold">&times;</button>
+        </div>
+
+        <div id="leaderboard-list" class="space-y-2 text-xs max-h-64 overflow-y-auto no-scrollbar">
+          <div class="text-center text-purple-400 py-4">Загрузка топа...</div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer Info -->
+  <footer class="w-full py-3 text-center text-xs font-semibold text-purple-400/60 z-10">
+    Discipline Clicker &bull; Фокус и Настойчивость
+  </footer>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- UPGRADES MODAL -->
+  <div id="upgrades-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-6 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[85vh] modal-anim">
+      <div class="flex justify-between items-center pb-4 border-b border-purple-900/60">
+        <h2 class="text-2xl font-black text-purple-200">Прокачка</h2>
+        <button onclick="closeModal('upgrades-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-2xl">&times;</button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto py-4 space-y-4 no-scrollbar">
+        <!-- Upgrade 1: Cooldown Reduction -->
+        <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-purple-100">Уменьшение Кулдауна</h3>
+            <p id="upg-cooldown-desc" class="text-xs text-purple-300/80">Задержка: 200мс</p>
+            <p id="upg-cooldown-lvl" class="text-xs font-bold text-purple-400 mt-1">Уровень: 0 / 10</p>
+          </div>
+          <button id="upg-cooldown-btn" onclick="buyUpgrade('cooldown')" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-sm text-sm transition-all disabled:opacity-40">
+            100 DP
+          </button>
+        </div>
+
+        <!-- Upgrade 2: Click Multiplier -->
+        <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-purple-100">Сила Клика</h3>
+            <p id="upg-click-desc" class="text-xs text-purple-300/80">Очков за клик: +1</p>
+            <p id="upg-click-lvl" class="text-xs font-bold text-purple-400 mt-1">Уровень: 0 / 20</p>
+          </div>
+          <button id="upg-click-btn" onclick="buyUpgrade('click')" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-sm text-sm transition-all disabled:opacity-40">
+            50 DP
+          </button>
+        </div>
+
+        <!-- Upgrade 3: Max Energy -->
+        <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-purple-100">Максимум Энергии</h3>
+            <p id="upg-energy-desc" class="text-xs text-purple-300/80">Макс. энергия: 100</p>
+            <p id="upg-energy-lvl" class="text-xs font-bold text-amber-400 mt-1">Уровень: 0 / 20</p>
+          </div>
+          <button id="upg-energy-btn" onclick="buyUpgrade('maxEnergy')" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-sm text-sm transition-all disabled:opacity-40">
+            120 DP
+          </button>
+        </div>
+
+        <!-- Upgrade 4: Auto-Focus / Passive Income -->
+        <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-purple-100">Пассивный Фокус</h3>
+            <p id="upg-passive-desc" class="text-xs text-purple-300/80">+0 DP в сек.</p>
+            <p id="upg-passive-lvl" class="text-xs font-bold text-purple-400 mt-1">Уровень: 0 / 20</p>
+          </div>
+          <button id="upg-passive-btn" onclick="buyUpgrade('passive')" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-sm text-sm transition-all disabled:opacity-40">
+            150 DP
+          </button>
+        </div>
+      </div>
+
+      <button onclick="closeModal('upgrades-modal')" class="w-full py-3 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl shadow-md transition-all mt-2 border border-purple-700/50">
+        Закрыть
+      </button>
+    </div>
+  </div>
+
+  <!-- SHOP MODAL -->
+  <div id="shop-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-6 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[85vh] modal-anim">
+      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
+        <h2 class="text-2xl font-black text-purple-200">Магазин</h2>
+        <button onclick="closeModal('shop-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-2xl">&times;</button>
+      </div>
+
+      <!-- Shop Category Sub-Menu -->
+      <div class="flex gap-2 my-3 p-1 bg-purple-950/60 rounded-xl border border-purple-800/40">
+        <button id="shop-tab-boosts" onclick="switchShopTab('boosts')" class="flex-1 py-1.5 font-bold text-xs rounded-lg bg-purple-600 text-white shadow-xs transition-all">
+          Бусты
+        </button>
+        <button id="shop-tab-skins" onclick="switchShopTab('skins')" class="flex-1 py-1.5 font-bold text-xs rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all">
+          Скины
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto py-2 space-y-4 no-scrollbar">
+        <!-- BOOSTS SECTION -->
+        <div id="shop-section-boosts" class="space-y-3">
+          <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+            <div>
+              <h3 class="font-bold text-purple-100">Ускорение 2x (30с)</h3>
+              <p class="text-xs text-purple-300/80">Удваивает клики на 30 секунд</p>
+            </div>
+            <button onclick="buyBoost()" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-sm text-sm transition-all">
+              1 000 DP
+            </button>
+          </div>
+        </div>
+
+        <!-- SKINS SECTION -->
+        <div id="shop-section-skins" class="hidden space-y-3">
+          <!-- Skin 1: Default Eskere -->
+          <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+            <div>
+              <h3 class="font-bold text-purple-100">Оригинальный Джокер</h3>
+              <p class="text-xs text-purple-300/80">Без бонуса</p>
+            </div>
+            <button id="skin-btn-eskere" onclick="handleSkinAction('resurs/eskere.png', 0)" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-sm transition-all">
+              Выбрать
+            </button>
+          </div>
+
+          <!-- Skin 2: Eskere Bez Zubika -->
+          <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+            <div>
+              <h3 class="font-bold text-purple-100">Эскере без зубика</h3>
+              <p class="text-xs text-amber-400 font-semibold">Бонус: +25% к клику</p>
+            </div>
+            <button id="skin-btn-bezzybik" onclick="handleSkinAction('resurs/eskerebeszybik.png', 500)" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-sm transition-all">
+              500 DP
+            </button>
+          </div>
+
+          <!-- Skin 3: STALIN -->
+          <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+            <div>
+              <h3 class="font-bold text-purple-100">Сталин</h3>
+              <p class="text-xs text-amber-400 font-semibold">Бонус: +50% к клику</p>
+            </div>
+            <button id="skin-btn-stalin" onclick="handleSkinAction('resurs/STALIN.png', 2500)" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-sm transition-all">
+              2 500 DP
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="closeModal('shop-modal')" class="w-full py-3 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl shadow-md transition-all mt-2 border border-purple-700/50">
+        Закрыть
+      </button>
+    </div>
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-6 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col modal-anim">
+      <div class="flex justify-between items-center pb-4 border-b border-purple-900/60">
+        <h2 class="text-2xl font-black text-purple-200">Настройки</h2>
+        <button onclick="closeModal('settings-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-2xl">&times;</button>
+      </div>
+
+      <div class="py-6 space-y-5">
+        <!-- Sound Volume -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <span class="font-bold text-purple-100 text-sm">Громкость звука</span>
+            <span id="volume-val" class="text-xs font-bold text-purple-400">50%</span>
+          </div>
+          <input id="volume-range" type="range" min="0" max="100" value="50" oninput="updateVolume(this.value)" class="w-full accent-purple-500 cursor-pointer">
+        </div>
+
+        <!-- Toggle Click Sound -->
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-purple-100 text-sm">Звук клика</span>
+          <input id="toggle-click-sound" type="checkbox" checked onchange="toggleClickSound(this.checked)" class="w-5 h-5 accent-purple-500 rounded cursor-pointer">
+        </div>
+
+        <!-- Toggle Animations -->
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-purple-100 text-sm">Выключить анимации</span>
+          <input id="toggle-anim" type="checkbox" onchange="toggleAnimations(this.checked)" class="w-5 h-5 accent-purple-500 rounded cursor-pointer">
+        </div>
+
+        <!-- Simplify Style -->
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-purple-100 text-sm">Упрощение стиля</span>
+          <input id="toggle-simple" type="checkbox" onchange="toggleSimpleStyle(this.checked)" class="w-5 h-5 accent-purple-500 rounded cursor-pointer">
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex gap-3 pt-2">
+        <button onclick="saveSettings()" class="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-md transition-all">
+          Сохранить
+        </button>
+        <button onclick="resetProgress()" class="flex-1 py-3 bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-700/50 font-bold rounded-xl shadow-md transition-all">
+          Сбросить
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-purple-950 text-purple-100 px-6 py-3 rounded-2xl shadow-[0_0_20px_rgba(168,85,247,0.4)] text-sm font-bold border border-purple-600/50 transition-all opacity-0 pointer-events-none translate-y-4">
+    Прогресс успешно сохранен
+  </div>
+
+  <!-- ==================== JAVASCRIPT ==================== -->
+  <script>
+    // ==================== SUPABASE & DISCORD CONFIG ====================
+    const SUPABASE_URL = 'https://thezviitufkkzncmnlxw.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_HESWLOlm3NOqvGipVGtnWA_4ITJx2tR';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const DISCORD_CLIENT_ID = '1559503506497347614'; 
+    let discordUser = null;
+
+    // Проверяем авторизацию через Discord при старте
+    async function checkDiscordAuth() {
+      const fragment = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = fragment.get('access_token');
+
+      if (accessToken) {
+        localStorage.setItem('discord_access_token', accessToken);
+        window.location.hash = '';
+      }
+
+      const token = localStorage.getItem('discord_access_token');
+
+      if (!token) {
+        document.getElementById('discord-auth-modal').classList.remove('hidden');
+        return false;
+      }
+
+      try {
+        const response = await fetch('https://discord.com/api/users/@me', {
+          headers: { authorization: `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Токен устарел');
+
+        discordUser = await response.json();
+        return true;
+      } catch (e) {
+        localStorage.removeItem('discord_access_token');
+        document.getElementById('discord-auth-modal').classList.remove('hidden');
+        return false;
+      }
+    }
+
+    function loginWithDiscord() {
+      const redirectUri = window.location.origin + window.location.pathname;
+      const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=identify`;
+      window.location.href = authUrl;
+    }
+
+    function getPlayerId() {
+      return discordUser ? `dc_${discordUser.id}` : null;
+    }
+
+    function getPlayerName() {
+      return discordUser ? (discordUser.global_name || discordUser.username) : 'Игрок';
+    }
+
+    // Сохранение в облако Supabase вместе с ником из Discord
+    async function saveToCloud() {
+      if (!discordUser) return;
+      const playerId = getPlayerId();
+      const playerPayload = {
+        id: playerId,
+        username: getPlayerName(),
+        score: Math.floor(state.score),
+        data: JSON.stringify(state)
+      };
+
+      const { error } = await supabaseClient
+        .from('players')
+        .upsert(playerPayload);
+
+      if (error) {
+        console.error('Ошибка сохранения в облако:', error);
+        showToast('Ошибка сохранения в облако!');
+      } else {
+        showToast('Прогресс сохранен в облаке!');
+        fetchLeaderboard();
+      }
+    }
+
+    // Загрузка из облака Supabase
+    async function loadFromCloud() {
+      const playerId = getPlayerId();
+      const { data, error } = await supabaseClient
+        .from('players')
+        .select('*')
+        .eq('id', playerId);
+
+      if (error) {
+        console.log('Ошибка запроса к облаку:', error);
+        return;
+      }
+
+      if (data && data.length > 0 && data[0].data) {
+        try {
+          const savedState = JSON.parse(data[0].data);
+          state = { ...state, ...savedState };
+          updateUI();
+          triggerCooldownAnimation();
+          showToast('Прогресс загружен из облака!');
+        } catch (e) {
+          console.error('Ошибка чтения данных игрока:', e);
+        }
+      }
+    }
+
+    // Загрузка таблицы лидеров реальных игроков из базы
+    async function fetchLeaderboard() {
+      const { data, error } = await supabaseClient
+        .from('players')
+        .select('username, score')
+        .order('score', { ascending: false })
+        .limit(10);
+
+      const listEl = document.getElementById('leaderboard-list');
+      if (error || !data) {
+        listEl.innerHTML = '<div class="text-center text-red-400 py-2">Ошибка загрузки топа</div>';
+        return;
+      }
+
+      if (data.length === 0) {
+        listEl.innerHTML = '<div class="text-center text-purple-400 py-2">Пока нет игроков</div>';
+        return;
+      }
+
+      let html = '';
+      data.forEach((player, index) => {
+        const isCurrent = discordUser && player.username === getPlayerName();
+        const rankColor = index === 0 ? 'border-amber-500/60 bg-amber-500/10 text-amber-300' : 
+                          index === 1 ? 'border-slate-300/60 bg-slate-300/10 text-slate-200' : 
+                          index === 2 ? 'border-amber-700/60 bg-amber-700/10 text-amber-600' : 'border-purple-800/40 bg-purple-950/40 text-purple-200';
+        
+        html += `
+          <div class="flex justify-between items-center p-2 rounded-xl border ${rankColor} ${isCurrent ? 'ring-2 ring-purple-400' : ''}">
+            <span class="font-bold truncate max-w-[140px]">#${index + 1} ${player.username}</span>
+            <span class="font-black text-white">${Math.floor(player.score).toLocaleString('ru-RU')} DP</span>
+          </div>
+        `;
+      });
+      listEl.innerHTML = html;
+    }
+    // ========================================================
+
+    // GAME STATE (Extended to Level 20 max for upgrades)
+    let state = {
+      score: 0,
+      clickPower: 1,
+      cooldownLvl: 0,
+      cooldownMs: 200,
+      passiveLvl: 0,
+      energyLvl: 0,
+      currentEnergy: 100,
+      maxEnergy: 100,
+      dps: 0,
+      boostMultiplier: 1,
+      volume: 0.5,
+      clickSoundEnabled: true,
+      disableAnimations: false,
+      simplifiedStyle: false,
+      currentSkin: 'resurs/eskere.png',
+      unlockedSkins: ['resurs/eskere.png']
+    };
+
+    let lastClickTime = 0;
+    let autoSaveTimeLeft = 60;
+    let autoSaveTimerInterval = null;
+    let cooldownProgressAnim = null;
+    let hasUnsavedChanges = false;
+    let lastSoundIndex = null;
+
+    let manualSaveCooldown = 0;
+    let manualSaveTimerInterval = null;
+
+    const loaderQuotes = [
+      "«Дисциплина — это решение делать то, чего не хочется делать, чтобы достичь того, чего хочется достичь.»",
+      "«Успех — это сумма небольших усилий, повторяющихся изо дня в день.»",
+      "«Препятствия не должны вас останавливать. Если вы столкнулись со стеной, не поворачивайте назад.»",
+      "«Маленькие ежедневные победы приводят к грандиозным результатам.»"
+    ];
+
+    function getSkinMultiplier(path) {
+      if (path === 'resurs/eskerebeszybik.png') return 1.25;
+      if (path === 'resurs/STALIN.png') return 1.50;
+      return 1.0;
+    }
+
+    // INIT LOADING & AUTH
+    window.addEventListener('load', async () => {
+      const isAuthed = await checkDiscordAuth();
+      if (!isAuthed) return;
+
+      runLoader();
+      setupExitWarning();
+      startEnergyRegen();
+      
+      await loadFromCloud();
+      fetchLeaderboard();
+      
+      // Обновление таблицы лидеров каждые 15 секунд
+      setInterval(fetchLeaderboard, 15000);
+    });
+
+    function runLoader() {
+      let percent = 0;
+      const bar = document.getElementById('loader-bar');
+      const percentTxt = document.getElementById('loader-percent');
+      const quoteTxt = document.getElementById('loader-quote');
+      const runner = document.getElementById('runner-container');
+
+      let quoteIndex = 0;
+      const quoteInterval = setInterval(() => {
+        quoteIndex = (quoteIndex + 1) % loaderQuotes.length;
+        quoteTxt.style.opacity = 0;
+        setTimeout(() => {
+          quoteTxt.innerText = loaderQuotes[quoteIndex];
+          quoteTxt.style.opacity = 1;
+        }, 300);
+      }, 1800);
+
+      const progressInterval = setInterval(() => {
+        percent += Math.floor(Math.random() * 8) + 4;
+        if (percent >= 100) {
+          percent = 100;
+          clearInterval(progressInterval);
+          clearInterval(quoteInterval);
+          percentTxt.innerText = '100%';
+          bar.style.width = '100%';
+          runner.style.left = '100%';
+
+          setTimeout(() => {
+            const loader = document.getElementById('loader-screen');
+            loader.classList.add('opacity-0');
+            setTimeout(() => {
+              loader.classList.add('hidden');
+              startAutoSaveTimer();
+              startPassiveIncome();
+            }, 500);
+          }, 400);
+        } else {
+          percentTxt.innerText = percent + '%';
+          bar.style.width = percent + '%';
+          runner.style.left = percent + '%';
+        }
+      }, 80);
+    }
+
+    function handleClick(e) {
+      const now = Date.now();
+      if (now - lastClickTime < state.cooldownMs) return;
+
+      if (state.currentEnergy <= 0) {
+        showToast('Недостаточно энергии!');
+        return;
+      }
+
+      lastClickTime = now;
+      state.currentEnergy--;
+
+      const skinMult = getSkinMultiplier(state.currentSkin);
+      const gained = Math.round(state.clickPower * state.boostMultiplier * skinMult);
+      state.score += gained;
+      hasUnsavedChanges = true;
+
+      playClickSounds();
+      updateUI();
+      triggerScoreAnimation();
+      triggerCooldownAnimation();
+
+      if (!state.disableAnimations) {
+        spawnFloatingText(e, `+${gained}`);
+        spawnLocalMilkSplash(e);
+      }
+    }
+
+    function triggerScoreAnimation() {
+      if (state.disableAnimations) return;
+      const scoreEl = document.getElementById('score-display');
+      scoreEl.classList.remove('animate-score');
+      void scoreEl.offsetWidth;
+      scoreEl.classList.add('animate-score');
+    }
+
+    function startEnergyRegen() {
+      setInterval(() => {
+        if (state.currentEnergy < state.maxEnergy) {
+          state.currentEnergy++;
+          updateUI();
+        }
+      }, 1000);
+    }
+
+    function triggerCooldownAnimation() {
+      const btn = document.getElementById('clicker-btn');
+      const bar = document.getElementById('cooldown-bar');
+      const text = document.getElementById('cooldown-text');
+
+      if (state.currentEnergy <= 0) {
+        btn.classList.add('pointer-events-none', 'opacity-50', 'cursor-not-allowed');
+        text.innerText = 'Нет энергии';
+        return;
+      }
+
+      if (state.cooldownMs <= 0) {
+        btn.classList.remove('pointer-events-none', 'opacity-80', 'cursor-not-allowed', 'opacity-50');
+        bar.style.width = '100%';
+        bar.className = 'h-full bg-emerald-500 rounded-full w-full';
+        text.innerText = 'Готов к клику';
+        return;
+      }
+
+      btn.classList.add('pointer-events-none', 'opacity-80', 'cursor-not-allowed');
+      bar.className = 'h-full bg-gradient-to-r from-purple-600 to-fuchsia-500 rounded-full w-0';
+      text.innerText = 'Перезарядка...';
+
+      if (cooldownProgressAnim) cancelAnimationFrame(cooldownProgressAnim);
+
+      const startTime = Date.now();
+      function step() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(100, (elapsed / state.cooldownMs) * 100);
+        bar.style.width = `${progress}%`;
+
+        if (elapsed < state.cooldownMs) {
+          cooldownProgressAnim = requestAnimationFrame(step);
+        } else {
+          if (state.currentEnergy > 0) {
+            btn.classList.remove('pointer-events-none', 'opacity-80', 'cursor-not-allowed', 'opacity-50');
+            text.innerText = 'Готов к клику';
+          }
+        }
+      }
+      cooldownProgressAnim = requestAnimationFrame(step);
+    }
+
+    function spawnFloatingText(e, text) {
+      if (state.disableAnimations) return;
+      const el = document.createElement('div');
+      el.className = 'floating-text text-xl sm:text-2xl';
+      el.innerText = text;
+
+      const x = e.clientX;
+      const y = e.clientY;
+
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 800);
+    }
+
+    function spawnLocalMilkSplash(e) {
+      if (state.disableAnimations) return;
+      const clickX = e.clientX;
+      const clickY = e.clientY;
+
+      const ripple = document.createElement('div');
+      ripple.className = 'milk-ripple';
+      const rippleSize = 30 + Math.random() * 20;
+      ripple.style.width = `${rippleSize}px`;
+      ripple.style.height = `${rippleSize}px`;
+      ripple.style.left = `${clickX - rippleSize / 2}px`;
+      ripple.style.top = `${clickY - rippleSize / 2}px`;
+      document.body.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 450);
+
+      const blob = document.createElement('div');
+      blob.className = 'milk-blob';
+      const width = 24 + Math.random() * 26;
+      const height = 24 + Math.random() * 26;
+      blob.style.width = `${width}px`;
+      blob.style.height = `${height}px`;
+      blob.style.left = `${clickX - width / 2}px`;
+      blob.style.top = `${clickY - height / 2}px`;
+
+      const r1 = 40 + Math.random() * 40;
+      const r2 = 40 + Math.random() * 40;
+      const r3 = 40 + Math.random() * 40;
+      const r4 = 40 + Math.random() * 40;
+      blob.style.borderRadius = `${r1}% ${100 - r1}% ${r2}% ${100 - r2}% / ${r3}% ${r4}% ${100 - r4}% ${100 - r3}%`;
+
+      document.body.appendChild(blob);
+      setTimeout(() => blob.remove(), 750);
+
+      const dropletCount = 4 + Math.floor(Math.random() * 5);
+      for (let i = 0; i < dropletCount; i++) {
+        const droplet = document.createElement('div');
+        droplet.className = 'milk-droplet';
+        const dSize = 4 + Math.random() * 6;
+        droplet.style.width = `${dSize}px`;
+        droplet.style.height = `${dSize}px`;
+        droplet.style.left = `${clickX - dSize / 2}px`;
+        droplet.style.top = `${clickY - dSize / 2}px`;
+
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 20 + Math.random() * 35;
+        const dx = Math.cos(angle) * dist;
+        const dy = Math.sin(angle) * dist + 12;
+
+        droplet.style.setProperty('--dx', `${dx}px`);
+        droplet.style.setProperty('--dy', `${dy}px`);
+
+        document.body.appendChild(droplet);
+        setTimeout(() => droplet.remove(), 550);
+      }
+    }
+
+    function toggleLeaderboard() {
+      const panel = document.getElementById('leaderboard-panel');
+      panel.classList.toggle('open');
+      if (panel.classList.contains('open')) {
+        fetchLeaderboard();
+      }
+    }
+
+    function playClickSounds() {
+      if (!state.clickSoundEnabled || state.volume <= 0) return;
+      
+      const quietFactor = 0.4;
+      const currentVol = state.volume * quietFactor;
+
+      const baseAudio = new Audio('resurs/sound/click.mp3');
+      baseAudio.volume = currentVol;
+      baseAudio.play().catch(() => {});
+
+      let soundIndex;
+      do {
+        soundIndex = Math.floor(Math.random() * 3) + 1;
+      } while (soundIndex === lastSoundIndex);
+      
+      lastSoundIndex = soundIndex;
+
+      const extraAudio = new Audio(`resurs/sound/click_sound${soundIndex}.mp3`);
+      extraAudio.volume = currentVol;
+      extraAudio.play().catch(() => {});
+    }
+
+    function handleImageError(img) {
+      if (img.src.endsWith('.png')) {
+        img.src = img.src.replace('.png', '.jpg');
+      } else if (img.src.endsWith('.jpg')) {
+        img.src = img.src.replace('.jpg', '.jpeg');
+      } else if (img.src.endsWith('.jpeg')) {
+        img.src = img.src.replace('.jpeg', '.webp');
+      }
+    }
+
+    function switchShopTab(tab) {
+      const boostsSec = document.getElementById('shop-section-boosts');
+      const skinsSec = document.getElementById('shop-section-skins');
+      const boostsTab = document.getElementById('shop-tab-boosts');
+      const skinsTab = document.getElementById('shop-tab-skins');
+
+      if (tab === 'boosts') {
+        boostsSec.classList.remove('hidden');
+        skinsSec.classList.add('hidden');
+        boostsTab.className = 'flex-1 py-1.5 font-bold text-xs rounded-lg bg-purple-600 text-white shadow-xs transition-all';
+        skinsTab.className = 'flex-1 py-1.5 font-bold text-xs rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
+      } else {
+        boostsSec.classList.add('hidden');
+        skinsSec.classList.remove('hidden');
+        skinsTab.className = 'flex-1 py-1.5 font-bold text-xs rounded-lg bg-purple-600 text-white shadow-xs transition-all';
+        boostsTab.className = 'flex-1 py-1.5 font-bold text-xs rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
+      }
+    }
+
+    function handleSkinAction(path, price) {
+      if (state.unlockedSkins.includes(path)) {
+        selectSkin(path);
+      } else {
+        if (state.score >= price) {
+          state.score -= price;
+          state.unlockedSkins.push(path);
+          selectSkin(path);
+          showToast('Скин куплен и применен!');
+        } else {
+          showToast('Недостаточно очков DP!');
+        }
+      }
+    }
+
+    function selectSkin(path) {
+      state.currentSkin = path;
+      document.getElementById('main-clicker-img').src = path;
+      hasUnsavedChanges = true;
+      updateUI();
+    }
+
+    function updateSkinsUI() {
+      const skins = [
+        { id: 'skin-btn-eskere', path: 'resurs/eskere.png', price: 0 },
+        { id: 'skin-btn-bezzybik', path: 'resurs/eskerebeszybik.png', price: 500 },
+        { id: 'skin-btn-stalin', path: 'resurs/STALIN.png', price: 2500 }
+      ];
+
+      skins.forEach(s => {
+        const btn = document.getElementById(s.id);
+        if (!btn) return;
+
+        if (state.currentSkin === s.path) {
+          btn.innerText = 'Активно';
+          btn.className = 'px-3 py-1 bg-purple-900/80 text-purple-200 font-extrabold rounded-xl text-xs border border-purple-700/50 cursor-default';
+          btn.disabled = true;
+        } else if (state.unlockedSkins.includes(s.path)) {
+          btn.innerText = 'Выбрать';
+          btn.className = 'px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer';
+          btn.disabled = false;
+        } else {
+          btn.innerText = `${s.price.toLocaleString('ru-RU')} DP`;
+          btn.className = 'px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer';
+          btn.disabled = false;
+        }
+      });
+    }
+
+    function getUpgradeCost(type) {
+      if (type === 'cooldown') {
+        if (state.cooldownLvl >= 10) return Infinity;
+        return Math.floor(100 * Math.pow(1.35, state.cooldownLvl));
+      }
+      if (type === 'click') {
+        if (state.clickPower >= 20) return Infinity;
+        return Math.floor(50 * Math.pow(1.25, state.clickPower - 1));
+      }
+      if (type === 'maxEnergy') {
+        if (state.energyLvl >= 20) return Infinity;
+        return Math.floor(120 * Math.pow(1.25, state.energyLvl));
+      }
+      if (type === 'passive') {
+        if (state.passiveLvl >= 20) return Infinity;
+        return Math.floor(150 * Math.pow(1.25, state.passiveLvl));
+      }
+      return 0;
+    }
+
+    function buyUpgrade(type) {
+      const cost = getUpgradeCost(type);
+      if (state.score < cost) return;
+
+      state.score -= cost;
+      hasUnsavedChanges = true;
+
+      if (type === 'cooldown' && state.cooldownLvl < 10) {
+        state.cooldownLvl++;
+        state.cooldownMs = state.cooldownLvl === 10 ? 0 : 200 - state.cooldownLvl * 20;
+      } else if (type === 'click' && state.clickPower < 20) {
+        state.clickPower++;
+      } else if (type === 'maxEnergy' && state.energyLvl < 20) {
+        state.energyLvl++;
+        state.maxEnergy += 25;
+        state.currentEnergy += 25;
+      } else if (type === 'passive' && state.passiveLvl < 20) {
+        state.passiveLvl++;
+        state.dps = state.passiveLvl * 2;
+      }
+
+      updateUI();
+      triggerCooldownAnimation();
+    }
+
+    function buyBoost() {
+      const cost = 1000;
+      if (state.score < cost) {
+        showToast('Недостаточно очков DP!');
+        return;
+      }
+      state.score -= cost;
+      state.boostMultiplier = 2;
+      showToast('Ускорение (2x) активировано на 30с!');
+      updateUI();
+
+      setTimeout(() => {
+        state.boostMultiplier = 1;
+        showToast('Действие ускорения завершено');
+        updateUI();
+      }, 30000);
+    }
+
+    function startPassiveIncome() {
+      setInterval(() => {
+        if (state.dps > 0) {
+          state.score += state.dps;
+          hasUnsavedChanges = true;
+          updateUI();
+        }
+      }, 1000);
+    }
+
+    function updateUI() {
+      document.getElementById('score-display').innerText = Math.floor(state.score).toLocaleString('ru-RU');
+      document.getElementById('dps-display').innerText = `+${state.dps * state.boostMultiplier} DP/с`;
+
+      const energyBar = document.getElementById('energy-bar');
+      const energyPct = Math.max(0, Math.min(100, (state.currentEnergy / state.maxEnergy) * 100));
+      energyBar.style.width = `${energyPct}%`;
+      document.getElementById('energy-text').innerText = `${state.currentEnergy} / ${state.maxEnergy}`;
+
+      const btn = document.getElementById('clicker-btn');
+      const text = document.getElementById('cooldown-text');
+
+      if (state.currentEnergy > 0 && text.innerText === 'Нет энергии') {
+        btn.classList.remove('pointer-events-none', 'opacity-50', 'cursor-not-allowed');
+        text.innerText = 'Готов к клику';
+      }
+
+      const cdCost = getUpgradeCost('cooldown');
+      const cdBtn = document.getElementById('upg-cooldown-btn');
+      const cdDesc = document.getElementById('upg-cooldown-desc');
+      const cdLvl = document.getElementById('upg-cooldown-lvl');
+
+      if (state.cooldownLvl >= 10) {
+        cdDesc.innerText = 'Кулдаун отключен (0мс)';
+        cdLvl.innerText = 'Уровень: МАКС (10/10)';
+        cdBtn.innerText = 'МАКС';
+        cdBtn.disabled = true;
+      } else {
+        cdDesc.innerText = `Задержка: ${state.cooldownMs}мс`;
+        cdLvl.innerText = `Уровень: ${state.cooldownLvl} / 10`;
+        cdBtn.innerText = `${cdCost.toLocaleString('ru-RU')} DP`;
+        cdBtn.disabled = state.score < cdCost;
+      }
+
+      const clickCost = getUpgradeCost('click');
+      const clickBtn = document.getElementById('upg-click-btn');
+      document.getElementById('upg-click-desc').innerText = `Очков за клик: +${state.clickPower}`;
+      document.getElementById('upg-click-lvl').innerText = `Уровень: ${state.clickPower} / 20`;
+      if (state.clickPower >= 20) {
+        clickBtn.innerText = 'МАКС';
+        clickBtn.disabled = true;
+      } else {
+        clickBtn.innerText = `${clickCost.toLocaleString('ru-RU')} DP`;
+        clickBtn.disabled = state.score < clickCost;
+      }
+
+      const nrgCost = getUpgradeCost('maxEnergy');
+      const nrgBtn = document.getElementById('upg-energy-btn');
+      document.getElementById('upg-energy-desc').innerText = `Макс. энергия: ${state.maxEnergy}`;
+      document.getElementById('upg-energy-lvl').innerText = `Уровень: ${state.energyLvl} / 20`;
+      if (state.energyLvl >= 20) {
+        nrgBtn.innerText = 'МАКС';
+        nrgBtn.disabled = true;
+      } else {
+        nrgBtn.innerText = `${nrgCost.toLocaleString('ru-RU')} DP`;
+        nrgBtn.disabled = state.score < nrgCost;
+      }
+
+      const passCost = getUpgradeCost('passive');
+      const passBtn = document.getElementById('upg-passive-btn');
+      document.getElementById('upg-passive-desc').innerText = `+${state.passiveLvl * 2} DP в секунду`;
+      document.getElementById('upg-passive-lvl').innerText = `Уровень: ${state.passiveLvl} / 20`;
+      if (state.passiveLvl >= 20) {
+        passBtn.innerText = 'МАКС';
+        passBtn.disabled = true;
+      } else {
+        passBtn.innerText = `${passCost.toLocaleString('ru-RU')} DP`;
+        passBtn.disabled = state.score < passCost;
+      }
+
+      updateSkinsUI();
+    }
+
+    function startAutoSaveTimer() {
+      autoSaveTimeLeft = 60;
+      autoSaveTimerInterval = setInterval(() => {
+        autoSaveTimeLeft--;
+        document.getElementById('autosave-timer').innerText = `${autoSaveTimeLeft}s`;
+
+        if (autoSaveTimeLeft <= 0) {
+          saveToCloud();
+          showToast('Автосохранение в облако выполнено');
+          resetAutoSaveTimer();
+        }
+      }, 1000);
+    }
+
+    function resetAutoSaveTimer() {
+      autoSaveTimeLeft = 60;
+      document.getElementById('autosave-timer').innerText = '60s';
+    }
+
+    function manualSave() {
+      if (manualSaveCooldown > 0) return;
+
+      saveToCloud();
+      resetAutoSaveTimer();
+
+      manualSaveCooldown = 30;
+      const btn = document.getElementById('manual-save-btn');
+      btn.disabled = true;
+      btn.innerText = `Сохранить (${manualSaveCooldown}s)`;
+
+      manualSaveTimerInterval = setInterval(() => {
+        manualSaveCooldown--;
+        if (manualSaveCooldown <= 0) {
+          clearInterval(manualSaveTimerInterval);
+          btn.disabled = false;
+          btn.innerText = 'Сохранить';
+        } else {
+          btn.innerText = `Сохранить (${manualSaveCooldown}s)`;
+        }
+      }, 1000);
+    }
+
+    function saveSettings() {
+      saveToCloud();
+      closeModal('settings-modal');
+      showToast('Настройки сохранены в облаке');
+    }
+
+    function resetProgress() {
+      if (confirm('Вы уверены, что хотите сбросить весь прогресс?')) {
+        state = {
+          score: 0,
+          clickPower: 1,
+          cooldownLvl: 0,
+          cooldownMs: 200,
+          passiveLvl: 0,
+          energyLvl: 0,
+          currentEnergy: 100,
+          maxEnergy: 100,
+          dps: 0,
+          boostMultiplier: 1,
+          volume: 0.5,
+          clickSoundEnabled: true,
+          disableAnimations: false,
+          simplifiedStyle: false,
+          currentSkin: 'resurs/eskere.png',
+          unlockedSkins: ['resurs/eskere.png']
+        };
+        saveToCloud();
+        location.reload();
+      }
+    }
+
+    function updateVolume(val) {
+      state.volume = val / 100;
+      document.getElementById('volume-val').innerText = `${val}%`;
+    }
+
+    function toggleClickSound(val) {
+      state.clickSoundEnabled = val;
+    }
+
+    function toggleAnimations(val) {
+      state.disableAnimations = val;
+      if (val) {
+        document.body.classList.add('no-animations');
+      } else {
+        document.body.classList.remove('no-animations');
+      }
+    }
+
+    function toggleSimpleStyle(val) {
+      state.simplifiedStyle = val;
+      if (val) {
+        document.body.classList.remove('dark-purple-bg');
+        document.body.style.backgroundColor = '#120524';
+      } else {
+        document.body.classList.add('dark-purple-bg');
+      }
+    }
+
+    function setupExitWarning() {
+      window.addEventListener('beforeunload', (e) => {
+        if (hasUnsavedChanges && autoSaveTimeLeft < 50) {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      });
+    }
+
+    function toggleMenu() {
+      const menu = document.getElementById('dropdown-menu');
+      menu.classList.toggle('hidden');
+    }
+
+    function openModal(id) {
+      document.getElementById('dropdown-menu').classList.add('hidden');
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.remove('opacity-0', 'translate-y-4');
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-4');
+      }, 2500);
+    }
+  </script>
+</body>
+</html>
