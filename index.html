@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Discipline Clicker (Test Mode)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Montserrat', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+      overflow: hidden;
+    }
+    
+    .dark-purple-bg {
+      background: radial-gradient(circle at center, #1e0b36 0%, #120524 40%, #090214 75%, #030008 100%);
+    }
+
+    /* Фоновые анимированные частицы */
+    .bg-particles {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      background: rgba(192, 132, 252, 0.15);
+      border-radius: 50%;
+      animation: floatParticle 8s infinite linear;
+    }
+
+    @keyframes floatParticle {
+      0% { transform: translateY(100vh) scale(0.5); opacity: 0; }
+      50% { opacity: 0.8; }
+      100% { transform: translateY(-10vh) scale(1.2); opacity: 0; }
+    }
+
+    .clicker-btn-sq {
+      box-shadow: 0 0 35px rgba(168, 85, 247, 0.35), inset 0 2px 4px rgba(255, 255, 255, 0.2);
+      transition: transform 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.15s ease;
+    }
+
+    .clicker-btn-sq:active {
+      transform: scale(0.92);
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+    }
+
+    @keyframes scorePulseAnim {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); filter: drop-shadow(0 0 15px #c084fc); }
+      100% { transform: scale(1); }
+    }
+
+    .animate-score {
+      animation: scorePulseAnim 0.25s ease-in-out;
+    }
+
+    @keyframes milkBlobImpact {
+      0% { transform: scale(0.3) translateY(0px); opacity: 0.95; border-radius: 50%; }
+      40% { transform: scale(1.4, 0.7) translateY(4px); opacity: 0.85; border-radius: 40% 60% 50% 50% / 60% 40% 60% 40%; }
+      100% { transform: scale(2.2, 1.8) translateY(15px); opacity: 0; border-radius: 30% 70% 40% 60% / 50% 50% 50% 50%; }
+    }
+
+    .milk-blob {
+      position: fixed;
+      pointer-events: none;
+      background: radial-gradient(circle at 35% 35%, #ffffff 0%, #f3e8ff 65%, #e9d5ff 100%);
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+      animation: milkBlobImpact 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      z-index: 9999;
+    }
+
+    .floating-text {
+      position: fixed;
+      pointer-events: none;
+      font-weight: 900;
+      color: #e9d5ff;
+      text-shadow: 0 0 10px #c084fc, 0 0 20px #9333ea;
+      animation: floatUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      z-index: 50;
+    }
+
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translate(-50%, -50%) scale(0.9); }
+      100% { opacity: 0; transform: translate(-50%, -120px) scale(1.2); }
+    }
+
+    .modal-anim {
+      animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .backdrop-blur-custom {
+      backdrop-filter: blur(12px);
+    }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    .centered-counter {
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+    }
+
+    .leaderboard-panel {
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      max-width: 0px;
+      opacity: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translateX(20px);
+    }
+
+    .leaderboard-panel.open {
+      max-width: 280px;
+      opacity: 1;
+      white-space: normal;
+      pointer-events: auto;
+      transform: translateX(0px);
+    }
+  </style>
+</head>
+<body class="dark-purple-bg min-h-screen text-purple-100 flex flex-col justify-between relative">
+
+  <!-- Фоновые анимированные элементы -->
+  <div class="bg-particles" id="particles-container"></div>
+
+  <!-- ЭКРАН ЗАГРУЗКИ -->
+  <div id="loader-screen" class="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
+    <h1 class="text-2xl sm:text-3xl font-extrabold tracking-wider text-white mb-2 drop-shadow-[0_0_12px_rgba(255,255,255,0.4)] text-center">ДИСЦИПЛИНА КЛИКЕР</h1>
+    <p class="text-purple-300 text-xs sm:text-sm font-semibold tracking-wide mb-6">Загрузка данных...</p>
+    <div class="w-48 sm:w-64 h-2.5 bg-purple-950 rounded-full overflow-hidden border border-purple-800/60 shadow-inner">
+      <div class="h-full bg-purple-500 rounded-full w-full animate-pulse"></div>
+    </div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="w-full px-3 sm:px-6 py-2.5 flex items-center justify-between z-30 relative bg-purple-950/50 backdrop-blur-md border-b border-purple-800/60 shadow-lg">
+    <div class="flex items-center gap-2 relative">
+      <!-- Меню -->
+      <button onclick="toggleMenu()" class="p-2 bg-purple-950/80 hover:bg-purple-900/80 text-purple-200 rounded-xl shadow-lg border border-purple-700/50 flex flex-col justify-around w-9 h-9 items-center cursor-pointer active:scale-95">
+        <span class="w-4 h-0.5 bg-purple-200 rounded-full"></span>
+        <span class="w-4 h-0.5 bg-purple-200 rounded-full"></span>
+        <span class="w-4 h-0.5 bg-purple-200 rounded-full"></span>
+      </button>
+
+      <div id="user-profile-badge" class="hidden sm:flex items-center gap-2 bg-purple-900/60 border border-purple-700/60 px-2.5 py-1 rounded-xl shadow-inner">
+        <img id="user-avatar" src="resurs/eskere.png" alt="Avatar" class="w-6 h-6 rounded-lg object-cover border border-purple-400/50" onerror="handleImageError(this)">
+        <span id="user-nickname" class="text-xs font-extrabold text-white max-w-[120px] truncate">@Tester</span>
+      </div>
+
+      <!-- Выпадающее меню -->
+      <div id="dropdown-menu" class="hidden absolute top-14 left-0 w-52 bg-zinc-950/95 border border-purple-800/80 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col z-40 backdrop-blur-md modal-anim">
+        <button onclick="openModal('upgrades-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
+          <span>Прокачка</span>
+          <span class="text-[10px] text-purple-300 bg-purple-900/60 px-2 py-0.5 rounded-full">Улучшения</span>
+        </button>
+        <button onclick="openModal('shop-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
+          <span>Магазин</span>
+          <span class="text-[10px] text-purple-300 bg-purple-900/60 px-2 py-0.5 rounded-full">Скины</span>
+        </button>
+        <button onclick="openModal('transfer-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
+          <span>Перевод DP</span>
+          <span class="text-[10px] text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded-full">Перевод</span>
+        </button>
+        <button onclick="openModal('logs-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
+          <span>Логи</span>
+        </button>
+        <button onclick="openModal('settings-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 flex items-center justify-between">
+          <span>Настройки</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Счетчик Очков (По центру в стиле скриншота) -->
+    <div class="absolute centered-counter top-2.5 flex flex-col items-center pointer-events-none z-30">
+      <div class="bg-purple-950/90 backdrop-blur-md border border-purple-700/60 rounded-2xl px-4 sm:px-6 py-1.5 text-center shadow-[0_0_20px_rgba(147,51,234,0.25)] min-w-[170px]">
+        <span class="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-purple-300/90 block">очки дисциплины</span>
+        <span id="score-display" class="text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-[0_0_10px_rgba(192,132,252,0.8)] leading-tight inline-block transition-transform">0</span>
+        <span id="dps-display" class="text-[10px] sm:text-xs font-bold text-purple-400 block mt-0.5">+0 DP/с</span>
+      </div>
+    </div>
+
+    <!-- Кнопки справа (Текстовые как на исходных скринах) -->
+    <div class="flex items-center gap-1.5 z-30">
+      <button id="manual-save-btn" onclick="manualSave()" class="px-3 py-2 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold text-xs rounded-xl shadow-md border border-purple-600/50 transition-all cursor-pointer active:scale-95 disabled:opacity-50">
+        Сохранить
+      </button>
+      
+      <div class="bg-purple-950/80 border border-purple-800/60 rounded-xl px-2.5 py-1 text-center shadow-xs">
+        <span class="text-[8px] font-bold text-purple-400 block leading-none">АВТО</span>
+        <span id="autosave-timer" class="text-xs font-black text-purple-200">60s</span>
+      </div>
+
+      <button onclick="toggleLeaderboard()" class="px-3 py-2 bg-purple-700 hover:bg-purple-600 text-white font-bold text-xs rounded-xl shadow-md border border-purple-500/50 transition-all cursor-pointer active:scale-95">
+        Топ
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN GAMEPLAY AREA -->
+  <main class="flex-1 flex items-center justify-center relative p-3 z-10">
+    <div class="relative flex items-center justify-center w-full max-w-4xl">
+
+      <div class="relative flex flex-col items-center justify-center z-20">
+        <button id="clicker-btn" onclick="handleClick(event)" class="clicker-btn-sq relative w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-purple-950/40 border-2 border-purple-500/70 hover:scale-105 active:scale-95 transition-all duration-100 select-none overflow-hidden cursor-pointer shadow-[0_0_30px_rgba(168,85,247,0.3)] flex items-center justify-center">
+          <img id="main-clicker-img" src="resurs/eskere.png" alt="Discipline" class="w-full h-full object-cover pointer-events-none transition-all" onerror="handleImageError(this)">
+        </button>
+
+        <div class="w-32 sm:w-40 mt-3 flex flex-col items-center gap-1.5">
+          <div class="w-full">
+            <div class="w-full h-1.5 bg-purple-950/80 rounded-full overflow-hidden border border-purple-800/60 p-0.5">
+              <div id="cooldown-bar" class="h-full bg-gradient-to-r from-purple-600 to-fuchsia-500 rounded-full w-full"></div>
+            </div>
+            <span id="cooldown-text" class="text-[9px] font-bold text-purple-300/80 block text-center mt-0.5">Готов к клику</span>
+          </div>
+
+          <!-- Энергия с иконкой молнии -->
+          <div class="w-full">
+            <div class="w-full h-2 bg-purple-950/90 rounded-full overflow-hidden border border-amber-500/50 p-0.5">
+              <div id="energy-bar" class="h-full bg-gradient-to-r from-amber-500 to-yellow-300 rounded-full w-full"></div>
+            </div>
+            <div class="flex justify-between items-center text-[9px] font-bold text-amber-300/90 px-0.5 mt-0.5">
+              <span class="flex items-center gap-1">
+                <svg class="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path></svg>
+              </span>
+              <span id="energy-text">100 / 100</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Leaderboard Side Panel -->
+      <div id="leaderboard-panel" class="leaderboard-panel absolute left-1/2 ml-24 sm:ml-32 bg-zinc-950/90 border border-purple-800/80 rounded-3xl p-3 shadow-[0_0_30px_rgba(147,51,234,0.3)] backdrop-blur-md z-10 w-60 sm:w-68 overflow-hidden">
+        <div class="flex justify-between items-center pb-2 mb-2 border-b border-purple-900/60">
+          <span class="font-extrabold text-xs text-purple-200">Таблица Лидеров</span>
+          <button onclick="toggleLeaderboard()" class="text-purple-400 hover:text-purple-200 text-xs font-bold">&times;</button>
+        </div>
+        <div id="leaderboard-list" class="space-y-1.5 text-xs max-h-48 overflow-y-auto no-scrollbar pr-0.5">
+          <div class="text-center text-purple-400 py-3">Загрузка топа...</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MODALS -->
+
+  <!-- МОДАЛКА ЛОГОВ -->
+  <div id="logs-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[80vh] modal-anim">
+      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
+        <h2 class="text-xl font-black text-purple-200">Логи Событий</h2>
+        <button onclick="closeModal('logs-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
+      </div>
+      <div id="logs-list" class="flex-1 overflow-y-auto py-3 space-y-2 no-scrollbar text-xs">
+        <div class="text-center text-purple-400 py-3">Нет записей</div>
+      </div>
+      <button onclick="closeModal('logs-modal')" class="w-full py-2.5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl text-xs transition-all mt-2 border border-purple-700/50">Закрыть</button>
+    </div>
+  </div>
+
+  <!-- МОДАЛКА ПЕРЕВОДА DP -->
+  <div id="transfer-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col modal-anim">
+      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
+        <h2 class="text-xl font-black text-purple-200">Перевод Очков</h2>
+        <button onclick="closeModal('transfer-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
+      </div>
+      <div class="py-4 space-y-3">
+        <div>
+          <label class="block text-[11px] font-bold text-purple-300 mb-1">Никнейм получателя (без @)</label>
+          <input id="transfer-target-input" type="text" placeholder="например: Player123" class="w-full bg-purple-950/60 border border-purple-700 text-purple-100 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-purple-400">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-purple-300 mb-1">Количество DP</label>
+          <input id="transfer-amount-input" type="number" min="1" placeholder="например: 500" class="w-full bg-purple-950/60 border border-purple-700 text-purple-100 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-purple-400">
+        </div>
+      </div>
+      <div class="flex gap-2.5 pt-1">
+        <button id="transfer-submit-btn" onclick="executeTransfer()" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer disabled:opacity-50">Отправить</button>
+        <button onclick="closeModal('transfer-modal')" class="py-2.5 px-4 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl text-xs border border-purple-700/50">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="upgrades-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[80vh] modal-anim">
+      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
+        <h2 class="text-xl font-black text-purple-200">Прокачка</h2>
+        <button onclick="closeModal('upgrades-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
+      </div>
+      <div class="flex-1 overflow-y-auto py-3 space-y-3 no-scrollbar text-xs">
+        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-purple-100">Уменьшение Кулдауна</h3>
+            <p id="upg-cooldown-desc" class="text-[10px] text-purple-300/80">Задержка: 200мс</p>
+            <p id="upg-cooldown-lvl" class="text-[10px] font-bold text-purple-400 mt-0.5">Уровень: 0 / 10</p>
+          </div>
+          <button id="upg-cooldown-btn" onclick="buyUpgrade('cooldown')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">150 DP</button>
+        </div>
+        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-purple-100">Сила Клика</h3>
+            <p id="upg-click-desc" class="text-[10px] text-purple-300/80">Очков за клик: +1</p>
+            <p id="upg-click-lvl" class="text-[10px] font-bold text-purple-400 mt-0.5">Уровень: 0 / 20</p>
+          </div>
+          <button id="upg-click-btn" onclick="buyUpgrade('click')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">80 DP</button>
+        </div>
+        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-purple-100">Максимум Энергии</h3>
+            <p id="upg-energy-desc" class="text-[10px] text-purple-300/80">Макс. энергия: 100</p>
+            <p id="upg-energy-lvl" class="text-[10px] font-bold text-amber-400 mt-0.5">Уровень: 0 / 20</p>
+          </div>
+          <button id="upg-energy-btn" onclick="buyUpgrade('maxEnergy')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">180 DP</button>
+        </div>
+        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-purple-100">Пассивный Фокус</h3>
+            <p id="upg-passive-desc" class="text-[10px] text-purple-300/80">+0 DP в сек.</p>
+            <p id="upg-passive-lvl" class="text-[10px] font-bold text-purple-400 mt-0.5">Уровень: 0 / 20</p>
+          </div>
+          <button id="upg-passive-btn" onclick="buyUpgrade('passive')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">220 DP</button>
+        </div>
+      </div>
+      <button onclick="closeModal('upgrades-modal')" class="w-full py-2.5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl text-xs border border-purple-700/50">Закрыть</button>
+    </div>
+  </div>
+
+  <div id="shop-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[80vh] modal-anim">
+      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
+        <h2 class="text-xl font-black text-purple-200">Магазин</h2>
+        <button onclick="closeModal('shop-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
+      </div>
+      <div class="flex gap-2 my-2.5 p-1 bg-purple-950/60 rounded-xl border border-purple-800/40 text-xs">
+        <button id="shop-tab-boosts" onclick="switchShopTab('boosts')" class="flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all">Бусты</button>
+        <button id="shop-tab-skins" onclick="switchShopTab('skins')" class="flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all">Скины</button>
+      </div>
+      <div class="flex-1 overflow-y-auto py-2 space-y-3 no-scrollbar text-xs">
+        <div id="shop-section-boosts" class="space-y-2.5">
+          <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+            <div>
+              <h3 class="font-bold text-purple-100">Ускорение 2x (30с)</h3>
+              <p class="text-[10px] text-purple-300/80">Удваивает клики</p>
+            </div>
+            <button id="boost-buy-btn" onclick="buyBoost()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs">1 500 DP</button>
+          </div>
+        </div>
+        
+        <div id="shop-section-skins" class="hidden space-y-2.5">
+          <div class="bg-purple-950/40 p-2.5 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2.5">
+              <img src="resurs/eskere.png" alt="Preview" class="w-8 h-8 rounded-lg object-cover border border-purple-500/50">
+              <div>
+                <h3 class="font-bold text-purple-100 text-xs">Оригинальный Джокер</h3>
+                <p class="text-[9px] text-purple-300/80">Без бонуса</p>
+              </div>
+            </div>
+            <button id="skin-btn-eskere" onclick="handleSkinAction('resurs/eskere.png', 0)" class="px-3 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px]">Выбрать</button>
+          </div>
+
+          <div class="bg-purple-950/40 p-2.5 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2.5">
+              <img src="resurs/eskerebeszybik.png" alt="Preview" class="w-8 h-8 rounded-lg object-cover border border-purple-500/50">
+              <div>
+                <h3 class="font-bold text-purple-100 text-xs">Эскере без зубика</h3>
+                <p class="text-[9px] text-amber-400 font-semibold">+25% к клику</p>
+              </div>
+            </div>
+            <button id="skin-btn-bezzybik" onclick="handleSkinAction('resurs/eskerebeszybik.png', 800)" class="px-3 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px]">800 DP</button>
+          </div>
+
+          <div class="bg-purple-950/40 p-2.5 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2.5">
+              <img src="resurs/STALIN.png" alt="Preview" class="w-8 h-8 rounded-lg object-cover border border-purple-500/50">
+              <div>
+                <h3 class="font-bold text-purple-100 text-xs">Сталин</h3>
+                <p class="text-[9px] text-amber-400 font-semibold">+50% к клику</p>
+              </div>
+            </div>
+            <button id="skin-btn-stalin" onclick="handleSkinAction('resurs/STALIN.png', 3500)" class="px-3 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px]">3 500 DP</button>
+          </div>
+        </div>
+      </div>
+      <button onclick="closeModal('shop-modal')" class="w-full py-2.5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl text-xs border border-purple-700/50">Закрыть</button>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col modal-anim text-xs">
+      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
+        <h2 class="text-xl font-black text-purple-200">Настройки</h2>
+        <button onclick="closeModal('settings-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
+      </div>
+      <div class="py-4 space-y-3.5">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-purple-100">Громкость звука</span>
+          <span id="volume-val" class="font-bold text-purple-400">50%</span>
+        </div>
+        <input id="volume-range" type="range" min="0" max="100" value="50" oninput="updateVolume(this.value)" class="w-full accent-purple-500 cursor-pointer">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-purple-100">Звук клика</span>
+          <input id="toggle-click-sound" type="checkbox" checked class="w-4 h-4 accent-purple-500 rounded cursor-pointer">
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-purple-100">Выключить анимации</span>
+          <input id="toggle-anim" type="checkbox" class="w-4 h-4 accent-purple-500 rounded cursor-pointer">
+        </div>
+      </div>
+      <div class="flex gap-2.5 pt-1">
+        <button onclick="saveSettings()" class="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-md">Сохранить</button>
+        <button onclick="resetProgress()" class="flex-1 py-2.5 bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-700/50 font-bold rounded-xl text-xs">Сбросить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Уведомления (Тосты) -->
+  <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-purple-950 text-purple-100 px-5 py-2.5 rounded-2xl shadow-[0_0_25px_rgba(168,85,247,0.5)] text-xs font-bold border border-purple-600/50 transition-all opacity-0 pointer-events-none translate-y-4">
+    Сообщение
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://thezviitufkkzncmnlxw.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_HESWLOlm3NOqvGipVGtnWA_4ITJx2tR';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let testPlayerName = localStorage.getItem('test_player_name');
+    if (!testPlayerName) {
+      testPlayerName = 'Tester_' + Math.floor(1000 + Math.random() * 9000);
+      localStorage.setItem('test_player_name', testPlayerName);
+    }
+
+    let state = {
+      score: 0,
+      clickPower: 1,
+      cooldownLvl: 0,
+      cooldownMs: 200,
+      passiveLvl: 0,
+      energyLvl: 0,
+      currentEnergy: 100,
+      maxEnergy: 100,
+      dps: 0,
+      boostMultiplier: 1,
+      volume: 0.5,
+      clickSoundEnabled: true,
+      disableAnimations: false,
+      currentSkin: 'resurs/eskere.png',
+      unlockedSkins: ['resurs/eskere.png'],
+      lastOnlineTime: Date.now(),
+      logs: []
+    };
+
+    let lastClickTime = 0;
+    let autoSaveTimeLeft = 60;
+    let autoSaveTimerInterval = null;
+    let manualSaveCooldown = 0;
+    let manualSaveTimerInterval = null;
+    let cooldownProgressAnim = null;
+    let boostTimeLeft = 0;
+    let boostTimerInterval = null;
+    let transferCooldown = 0;
+    let transferTimerInterval = null;
+
+    function addLog(text) {
+      const timeStr = new Date().toLocaleTimeString();
+      state.logs.unshift(`[${timeStr}] ${text}`);
+      if (state.logs.length > 30) state.logs.pop();
+      updateLogsUI();
+    }
+
+    function updateLogsUI() {
+      const listEl = document.getElementById('logs-list');
+      if (!listEl) return;
+      if (!state.logs || state.logs.length === 0) {
+        listEl.innerHTML = '<div class="text-center text-purple-400 py-3">Нет записей</div>';
+        return;
+      }
+      let html = '';
+      state.logs.forEach(log => {
+        html += `<div class="bg-purple-950/40 border border-purple-800/40 p-2 rounded-xl text-purple-200">${log}</div>`;
+      });
+      listEl.innerHTML = html;
+    }
+
+    function getSkinMultiplier(path) {
+      if (path === 'resurs/eskerebeszybik.png') return 1.25;
+      if (path === 'resurs/STALIN.png') return 1.50;
+      return 1.0;
+    }
+
+    window.addEventListener('load', async () => {
+      createParticles();
+      document.getElementById('user-nickname').innerText = `@${testPlayerName}`;
+      await loadFromCloud();
+
+      const now = Date.now();
+      if (state.lastOnlineTime) {
+        const secondsPassed = Math.floor((now - state.lastOnlineTime) / 1000);
+        if (secondsPassed > 0 && state.currentEnergy < state.maxEnergy) {
+          const recovered = Math.floor(secondsPassed / 2);
+          state.currentEnergy = Math.min(state.maxEnergy, state.currentEnergy + recovered);
+        }
+      }
+
+      updateUI();
+      applySettings();
+      startEnergyRegen();
+      fetchLeaderboard();
+      initRealtimeSync();
+
+      const loader = document.getElementById('loader-screen');
+      if (loader) {
+        loader.classList.add('opacity-0');
+        setTimeout(() => {
+          loader.classList.add('hidden');
+          startAutoSaveTimer();
+          startPassiveIncome();
+        }, 400);
+      }
+
+      setInterval(fetchLeaderboard, 10000);
+    });
+
+    function createParticles() {
+      const container = document.getElementById('particles-container');
+      if (!container) return;
+      for (let i = 0; i < 15; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        const size = 4 + Math.random() * 6;
+        p.style.width = `${size}px`;
+        p.style.height = `${size}px`;
+        p.style.left = `${Math.random() * 100}%`;
+        p.style.animationDuration = `${6 + Math.random() * 6}s`;
+        p.style.animationDelay = `${Math.random() * 5}s`;
+        container.appendChild(p);
+      }
+    }
+
+    function getPlayerId() {
+      return `test_${testPlayerName}`;
+    }
+
+    function getPlayerName() {
+      return testPlayerName;
+    }
+
+    // Мгновенная синхронизация через Supabase Realtime
+    function initRealtimeSync() {
+      supabaseClient
+        .channel('public:players')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, payload => {
+          fetchLeaderboard();
+          if (payload.new && payload.new.id === getPlayerId()) {
+            try {
+              const remoteData = JSON.parse(payload.new.data);
+              if (remoteData.score > state.score) {
+                state.score = remoteData.score;
+              }
+              if (remoteData.logs && remoteData.logs.length > state.logs.length) {
+                const latestLog = remoteData.logs[0];
+                state.logs = remoteData.logs;
+                updateLogsUI();
+                
+                if (latestLog && latestLog.includes('перевел вам')) {
+                  playTransferSound();
+                  showGreenToast(latestLog);
+                }
+              }
+              updateUI();
+            } catch (e) {}
+          }
+        })
+        .subscribe();
+    }
+
+    function playTransferSound() {
+      if (state.volume <= 0) return;
+      try {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.volume = state.volume;
+        audio.play().catch(() => {});
+      } catch (e) {}
+    }
+
+    function showGreenToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-emerald-950 text-emerald-100 px-5 py-3 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.6)] text-xs font-extrabold border border-emerald-500/60 transition-all opacity-100 translate-y-0';
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-4');
+      }, 4000);
+    }
+
+    async function executeTransfer() {
+      if (transferCooldown > 0) return;
+
+      const targetInput = document.getElementById('transfer-target-input');
+      const amountInput = document.getElementById('transfer-amount-input');
+      const submitBtn = document.getElementById('transfer-submit-btn');
+
+      let targetName = targetInput ? targetInput.value.trim().replace(/^@/, '') : '';
+      let amount = amountInput ? parseInt(amountInput.value) : 0;
+
+      if (!targetName || isNaN(amount) || amount <= 0) {
+        showToast('Укажите правильную сумму и ник!');
+        return;
+      }
+
+      if (targetName.toLowerCase() === getPlayerName().toLowerCase()) {
+        showToast('Нельзя переводить очки самому себе!');
+        return;
+      }
+
+      if (state.score < amount) {
+        showToast('Недостаточно очков DP!');
+        return;
+      }
+
+      const { data, error } = await supabaseClient
+        .from('players')
+        .select('*')
+        .ilike('username', targetName);
+
+      if (error || !data || data.length === 0) {
+        showToast('Игрок не найден!');
+        return;
+      }
+
+      const targetPlayer = data[0];
+      let targetState = {};
+      try {
+        if (targetPlayer.data) targetState = JSON.parse(targetPlayer.data);
+      } catch (e) {}
+
+      state.score -= amount;
+      addLog(`Вы перевели ${amount} DP игроку @${targetPlayer.username}`);
+
+      targetPlayer.score = (targetPlayer.score || 0) + amount;
+      targetState.score = (targetState.score || 0) + amount;
+
+      if (!targetState.logs) targetState.logs = [];
+      const timeStr = new Date().toLocaleTimeString();
+      targetState.logs.unshift(`[${timeStr}] Игрок @${getPlayerName()} перевел вам ${amount} DP!`);
+
+      targetPlayer.data = JSON.stringify(targetState);
+
+      await supabaseClient.from('players').upsert(targetPlayer);
+      await saveToCloud();
+
+      showToast('Очки успешно переведены!');
+      closeModal('transfer-modal');
+
+      if (targetInput) targetInput.value = '';
+      if (amountInput) amountInput.value = '';
+
+      transferCooldown = 15;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = `Отправить (${transferCooldown}s)`;
+      }
+
+      if (transferTimerInterval) clearInterval(transferTimerInterval);
+      transferTimerInterval = setInterval(() => {
+        transferCooldown--;
+        if (transferCooldown <= 0) {
+          clearInterval(transferTimerInterval);
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = 'Отправить';
+          }
+        } else {
+          if (submitBtn) submitBtn.innerText = `Отправить (${transferCooldown}s)`;
+        }
+      }, 1000);
+    }
+
+    async function saveToCloud() {
+      const playerId = getPlayerId();
+      if (!playerId) return;
+
+      state.lastOnlineTime = Date.now();
+
+      const playerPayload = {
+        id: playerId,
+        username: getPlayerName(),
+        score: Math.floor(state.score),
+        data: JSON.stringify(state)
+      };
+
+      const { error } = await supabaseClient.from('players').upsert(playerPayload);
+      if (!error) {
+        showToast('Прогресс сохранен!');
+        fetchLeaderboard();
+      }
+    }
+
+    async function loadFromCloud() {
+      const playerId = getPlayerId();
+      if (!playerId) return;
+
+      const { data, error } = await supabaseClient.from('players').select('*').eq('id', playerId);
+      if (error) return;
+
+      if (data && data.length > 0 && data[0].data) {
+        try {
+          const savedState = JSON.parse(data[0].data);
+          state = { ...state, ...savedState };
+          updateLogsUI();
+        } catch (e) {}
+      }
+    }
+
+    async function fetchLeaderboard() {
+      const { data, error } = await supabaseClient
+        .from('players')
+        .select('username, score')
+        .order('score', { ascending: false })
+        .limit(10);
+
+      const listEl = document.getElementById('leaderboard-list');
+      if (error || !data) {
+        listEl.innerHTML = '<div class="text-center text-red-400 py-2">Error</div>';
+        return;
+      }
+
+      if (data.length === 0) {
+        listEl.innerHTML = '<div class="text-center text-purple-400 py-2">No players</div>';
+        return;
+      }
+
+      let html = '';
+      data.forEach((player, index) => {
+        const isCurrent = player.username === getPlayerName();
+        const rankColor = index === 0 ? 'border-amber-500/60 bg-amber-500/10 text-amber-300' : 
+                          index === 1 ? 'border-slate-300/60 bg-slate-300/10 text-slate-200' : 
+                          index === 2 ? 'border-amber-700/60 bg-amber-700/10 text-amber-600' : 'border-purple-800/40 bg-purple-950/40 text-purple-200';
+        
+        html += `
+          <div class="flex justify-between items-center px-2 py-1.5 rounded-xl border ${rankColor} ${isCurrent ? 'ring-2 ring-purple-400' : ''} gap-2">
+            <span class="font-bold truncate text-left max-w-[110px]">#${index + 1} ${player.username}</span>
+            <span class="font-black text-white whitespace-nowrap">${Math.floor(player.score).toLocaleString('ru-RU')} DP</span>
+          </div>
+        `;
+      });
+      listEl.innerHTML = html;
+    }
+
+    function handleClick(e) {
+      const now = Date.now();
+      if (now - lastClickTime < state.cooldownMs) return;
+
+      if (state.currentEnergy <= 0) {
+        showToast('Недостаточно энергии!');
+        return;
+      }
+
+      lastClickTime = now;
+      state.currentEnergy--;
+
+      const skinMult = getSkinMultiplier(state.currentSkin);
+      const gained = Math.round(state.clickPower * state.boostMultiplier * skinMult);
+      state.score += gained;
+
+      playClickSounds();
+      updateUI();
+      triggerScoreAnimation();
+      triggerCooldownAnimation();
+
+      if (!state.disableAnimations && e.clientX) {
+        spawnFloatingText(e, `+${gained}`);
+        spawnLocalMilkSplash(e);
+      }
+    }
+
+    function triggerScoreAnimation() {
+      if (state.disableAnimations) return;
+      const scoreEl = document.getElementById('score-display');
+      scoreEl.classList.remove('animate-score');
+      void scoreEl.offsetWidth;
+      scoreEl.classList.add('animate-score');
+    }
+
+    function startEnergyRegen() {
+      setInterval(() => {
+        if (state.currentEnergy < state.maxEnergy) {
+          state.currentEnergy++;
+          if (state.currentEnergy > 0) {
+            const btn = document.getElementById('clicker-btn');
+            const text = document.getElementById('cooldown-text');
+            if (btn && text && text.innerText === 'Нет энергии') {
+              btn.classList.remove('pointer-events-none', 'opacity-50', 'cursor-not-allowed');
+              text.innerText = 'Готов к клику';
+            }
+          }
+          updateUI();
+        }
+      }, 3000);
+    }
+
+    function triggerCooldownAnimation() {
+      const btn = document.getElementById('clicker-btn');
+      const bar = document.getElementById('cooldown-bar');
+      const text = document.getElementById('cooldown-text');
+
+      if (state.currentEnergy <= 0) {
+        btn.classList.add('pointer-events-none', 'opacity-50', 'cursor-not-allowed');
+        text.innerText = 'Нет энергии';
+        return;
+      }
+
+      if (state.cooldownMs <= 0) {
+        btn.classList.remove('pointer-events-none', 'opacity-80', 'cursor-not-allowed', 'opacity-50');
+        bar.style.width = '100%';
+        bar.className = 'h-full bg-emerald-500 rounded-full w-full';
+        text.innerText = 'Готов к клику';
+        return;
+      }
+
+      btn.classList.add('pointer-events-none', 'opacity-80', 'cursor-not-allowed');
+      bar.className = 'h-full bg-gradient-to-r from-purple-600 to-fuchsia-500 rounded-full w-0';
+      text.innerText = 'Перезарядка...';
+
+      if (cooldownProgressAnim) cancelAnimationFrame(cooldownProgressAnim);
+
+      const startTime = Date.now();
+      function step() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(100, (elapsed / state.cooldownMs) * 100);
+        bar.style.width = `${progress}%`;
+
+        if (elapsed < state.cooldownMs) {
+          cooldownProgressAnim = requestAnimationFrame(step);
+        } else {
+          if (state.currentEnergy > 0) {
+            btn.classList.remove('pointer-events-none', 'opacity-80', 'cursor-not-allowed', 'opacity-50');
+            text.innerText = 'Готов к клику';
+          }
+        }
+      }
+      cooldownProgressAnim = requestAnimationFrame(step);
+    }
+
+    function spawnFloatingText(e, text) {
+      if (state.disableAnimations) return;
+      const el = document.createElement('div');
+      el.className = 'floating-text text-lg sm:text-xl';
+      el.innerText = text;
+      el.style.left = `${e.clientX}px`;
+      el.style.top = `${e.clientY}px`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 800);
+    }
+
+    function spawnLocalMilkSplash(e) {
+      if (state.disableAnimations) return;
+      const clickX = e.clientX;
+      const clickY = e.clientY;
+
+      const blob = document.createElement('div');
+      blob.className = 'milk-blob';
+      const size = 24 + Math.random() * 12;
+      blob.style.width = `${size}px`;
+      blob.style.height = `${size}px`;
+      blob.style.left = `${clickX - size / 2}px`;
+      blob.style.top = `${clickY - size / 2}px`;
+
+      document.body.appendChild(blob);
+      setTimeout(() => blob.remove(), 600);
+    }
+
+    function toggleLeaderboard() {
+      document.getElementById('leaderboard-panel').classList.toggle('open');
+      fetchLeaderboard();
+    }
+
+    function playClickSounds() {
+      if (!state.clickSoundEnabled || state.volume <= 0) return;
+      const baseAudio = new Audio('resurs/sound/click.mp3');
+      baseAudio.volume = state.volume * 0.4;
+      baseAudio.play().catch(() => {});
+    }
+
+    function handleImageError(img) {
+      img.onerror = null;
+      img.src = 'resurs/error.png';
+    }
+
+    function switchShopTab(tab) {
+      const boostsSec = document.getElementById('shop-section-boosts');
+      const skinsSec = document.getElementById('shop-section-skins');
+      const boostsTab = document.getElementById('shop-tab-boosts');
+      const skinsTab = document.getElementById('shop-tab-skins');
+
+      if (tab === 'boosts') {
+        boostsSec.classList.remove('hidden');
+        skinsSec.classList.add('hidden');
+        boostsTab.className = 'flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all';
+        skinsTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
+      } else {
+        boostsSec.classList.add('hidden');
+        skinsSec.classList.remove('hidden');
+        skinsTab.className = 'flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all';
+        boostsTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
+      }
+    }
+
+    function handleSkinAction(path, price) {
+      if (state.unlockedSkins.includes(path)) {
+        selectSkin(path);
+      } else if (state.score >= price) {
+        state.score -= price;
+        state.unlockedSkins.push(path);
+        selectSkin(path);
+        addLog(`Куплен скин за ${price} DP`);
+        showToast('Куплено!');
+      } else {
+        showToast('Недостаточно очков DP!');
+      }
+    }
+
+    function selectSkin(path) {
+      state.currentSkin = path;
+      const clickerImg = document.getElementById('main-clicker-img');
+      if (clickerImg) clickerImg.src = path;
+      updateUI();
+      saveToCloud();
+    }
+
+    function updateSkinsUI() {
+      const skins = [
+        { id: 'skin-btn-eskere', path: 'resurs/eskere.png', price: 0 },
+        { id: 'skin-btn-bezzybik', path: 'resurs/eskerebeszybik.png', price: 800 },
+        { id: 'skin-btn-stalin', path: 'resurs/STALIN.png', price: 3500 }
+      ];
+
+      skins.forEach(s => {
+        const btn = document.getElementById(s.id);
+        if (!btn) return;
+        if (state.currentSkin === s.path) {
+          btn.innerText = 'Активно';
+          btn.disabled = true;
+        } else if (state.unlockedSkins.includes(s.path)) {
+          btn.innerText = 'Выбрать';
+          btn.disabled = false;
+        } else {
+          btn.innerText = `${s.price} DP`;
+          btn.disabled = false;
+        }
+      });
+    }
+
+    function getUpgradeCost(type) {
+      if (type === 'cooldown') return state.cooldownLvl >= 10 ? Infinity : Math.floor(150 * Math.pow(1.4, state.cooldownLvl));
+      if (type === 'click') return state.clickPower >= 20 ? Infinity : Math.floor(80 * Math.pow(1.3, state.clickPower - 1));
+      if (type === 'maxEnergy') return state.energyLvl >= 20 ? Infinity : Math.floor(180 * Math.pow(1.3, state.energyLvl));
+      if (type === 'passive') return state.passiveLvl >= 20 ? Infinity : Math.floor(220 * Math.pow(1.3, state.passiveLvl));
+      return 0;
+    }
+
+    function buyUpgrade(type) {
+      const cost = getUpgradeCost(type);
+      if (state.score < cost) return;
+      state.score -= cost;
+
+      if (type === 'cooldown') { 
+        state.cooldownLvl++; 
+        state.cooldownMs = state.cooldownLvl === 10 ? 0 : 200 - state.cooldownLvl * 20; 
+        addLog(`Улучшен кулдаун (ур. ${state.cooldownLvl})`);
+      }
+      else if (type === 'click') { 
+        state.clickPower++; 
+        addLog(`Сила клика +1`);
+      }
+      else if (type === 'maxEnergy') { 
+        state.energyLvl++; 
+        state.maxEnergy += 25; 
+        state.currentEnergy += 25; 
+        addLog(`Макс. энергия +25`);
+      }
+      else if (type === 'passive') { 
+        state.passiveLvl++; 
+        state.dps = state.passiveLvl * 2; 
+        addLog(`Пассивный фокус +2 DP/с`);
+      }
+
+      updateUI();
+      saveToCloud();
+    }
+
+    function buyBoost() {
+      if (boostTimeLeft > 0) return;
+      if (state.score < 1500) {
+        showToast('Недостаточно очков DP!');
+        return;
+      }
+      state.score -= 1500;
+      state.boostMultiplier = 2;
+      boostTimeLeft = 30;
+      addLog('Куплен буст 2x');
+
+      const boostBtn = document.getElementById('boost-buy-btn');
+      if (boostBtn) {
+        boostBtn.disabled = true;
+        boostBtn.innerText = `${boostTimeLeft}s`;
+      }
+
+      if (boostTimerInterval) clearInterval(boostTimerInterval);
+      boostTimerInterval = setInterval(() => {
+        boostTimeLeft--;
+        if (boostTimeLeft <= 0) {
+          clearInterval(boostTimerInterval);
+          state.boostMultiplier = 1;
+          if (boostBtn) {
+            boostBtn.disabled = false;
+            boostBtn.innerText = '1 500 DP';
+          }
+          updateUI();
+        } else {
+          if (boostBtn) boostBtn.innerText = `${boostTimeLeft}s`;
+        }
+      }, 1000);
+
+      updateUI();
+      saveToCloud();
+    }
+
+    function startPassiveIncome() {
+      setInterval(() => {
+        if (state.dps > 0) {
+          state.score += state.dps;
+          updateUI();
+        }
+      }, 1000);
+    }
+
+    function updateUpgradesUI() {
+      const cdCost = getUpgradeCost('cooldown');
+      const cdBtn = document.getElementById('upg-cooldown-btn');
+      const cdDesc = document.getElementById('upg-cooldown-desc');
+      const cdLvl = document.getElementById('upg-cooldown-lvl');
+      if (state.cooldownLvl >= 10) {
+        cdDesc.innerText = 'Кулдаун отключен (0мс)';
+        cdLvl.innerText = 'Уровень: МАКС (10/10)';
+        cdBtn.innerText = 'MAX';
+        cdBtn.disabled = true;
+      } else {
+        cdDesc.innerText = `Задержка: ${state.cooldownMs}мс`;
+        cdLvl.innerText = `Уровень: ${state.cooldownLvl} / 10`;
+        cdBtn.innerText = `${cdCost.toLocaleString('ru-RU')} DP`;
+        cdBtn.disabled = state.score < cdCost;
+      }
+
+      const clickCost = getUpgradeCost('click');
+      const clickBtn = document.getElementById('upg-click-btn');
+      document.getElementById('upg-click-desc').innerText = `Очков за клик: +${state.clickPower}`;
+      document.getElementById('upg-click-lvl').innerText = `Уровень: ${state.clickPower} / 20`;
+      if (state.clickPower >= 20) {
+        clickBtn.innerText = 'MAX';
+        clickBtn.disabled = true;
+      } else {
+        clickBtn.innerText = `${clickCost.toLocaleString('ru-RU')} DP`;
+        clickBtn.disabled = state.score < clickCost;
+      }
+
+      const nrgCost = getUpgradeCost('maxEnergy');
+      const nrgBtn = document.getElementById('upg-energy-btn');
+      document.getElementById('upg-energy-desc').innerText = `Макс. энергия: ${state.maxEnergy}`;
+      document.getElementById('upg-energy-lvl').innerText = `Уровень: ${state.energyLvl} / 20`;
+      if (state.energyLvl >= 20) {
+        nrgBtn.innerText = 'MAX';
+        nrgBtn.disabled = true;
+      } else {
+        nrgBtn.innerText = `${nrgCost.toLocaleString('ru-RU')} DP`;
+        nrgBtn.disabled = state.score < nrgCost;
+      }
+
+      const passCost = getUpgradeCost('passive');
+      const passBtn = document.getElementById('upg-passive-btn');
+      document.getElementById('upg-passive-desc').innerText = `+${state.passiveLvl * 2} DP в секунду`;
+      document.getElementById('upg-passive-lvl').innerText = `Уровень: ${state.passiveLvl} / 20`;
+      if (state.passiveLvl >= 20) {
+        passBtn.innerText = 'MAX';
+        passBtn.disabled = true;
+      } else {
+        passBtn.innerText = `${passCost.toLocaleString('ru-RU')} DP`;
+        passBtn.disabled = state.score < passCost;
+      }
+    }
+
+    function updateUI() {
+      document.getElementById('score-display').innerText = Math.floor(state.score).toLocaleString('ru-RU');
+      document.getElementById('dps-display').innerText = `+${state.dps * state.boostMultiplier} DP/с`;
+      
+      const clickerImg = document.getElementById('main-clicker-img');
+      if (clickerImg && state.currentSkin) {
+        clickerImg.src = state.currentSkin;
+      }
+
+      const energyBar = document.getElementById('energy-bar');
+      const energyPct = Math.max(0, Math.min(100, (state.currentEnergy / state.maxEnergy) * 100));
+      energyBar.style.width = `${energyPct}%`;
+      document.getElementById('energy-text').innerText = `${state.currentEnergy} / ${state.maxEnergy}`;
+      
+      updateSkinsUI();
+      updateUpgradesUI();
+    }
+
+    function startAutoSaveTimer() {
+      if (autoSaveTimerInterval) clearInterval(autoSaveTimerInterval);
+      autoSaveTimeLeft = 60;
+      autoSaveTimerInterval = setInterval(() => {
+        autoSaveTimeLeft--;
+        const timerEl = document.getElementById('autosave-timer');
+        if (timerEl) timerEl.innerText = `${autoSaveTimeLeft}s`;
+
+        if (autoSaveTimeLeft <= 0) {
+          saveToCloud();
+          autoSaveTimeLeft = 60;
+        }
+      }, 1000);
+    }
+
+    function manualSave() {
+      if (manualSaveCooldown > 0) return;
+      saveToCloud();
+      startAutoSaveTimer();
+
+      manualSaveCooldown = 30;
+      const btn = document.getElementById('manual-save-btn');
+      if (btn) {
+        btn.disabled = true;
+      }
+
+      if (manualSaveTimerInterval) clearInterval(manualSaveTimerInterval);
+      manualSaveTimerInterval = setInterval(() => {
+        manualSaveCooldown--;
+        if (manualSaveCooldown <= 0) {
+          clearInterval(manualSaveTimerInterval);
+          if (btn) btn.disabled = false;
+        }
+      }, 1000);
+    }
+
+    function saveSettings() {
+      state.volume = parseInt(document.getElementById('volume-range').value) / 100;
+      state.clickSoundEnabled = document.getElementById('toggle-click-sound').checked;
+      state.disableAnimations = document.getElementById('toggle-anim').checked;
+
+      applySettings();
+      saveToCloud();
+      closeModal('settings-modal');
+      showToast('Настройки сохранены');
+    }
+
+    function applySettings() {
+      // Применение настроек
+    }
+
+    function resetProgress() {
+      if (confirm('Сбросить прогресс?')) {
+        localStorage.clear();
+        location.reload();
+      }
+    }
+
+    function updateVolume(val) { 
+      state.volume = val / 100; 
+      document.getElementById('volume-val').innerText = val + '%'; 
+    }
+
+    function toggleMenu() { document.getElementById('dropdown-menu').classList.toggle('hidden'); }
+    
+    function openModal(id) {
+      document.getElementById('dropdown-menu').classList.add('hidden');
+      document.getElementById(id).classList.remove('hidden');
+
+      if (id === 'settings-modal') {
+        const volPercent = Math.round(state.volume * 100);
+        document.getElementById('volume-range').value = volPercent;
+        document.getElementById('volume-val').innerText = `${volPercent}%`;
+        document.getElementById('toggle-click-sound').checked = state.clickSoundEnabled;
+        document.getElementById('toggle-anim').checked = state.disableAnimations;
+      }
+    }
+
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-purple-950 text-purple-100 px-5 py-2.5 rounded-2xl shadow-[0_0_25px_rgba(168,85,247,0.5)] text-xs font-bold border border-purple-600/50 transition-all opacity-100 translate-y-0';
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-4');
+      }, 2500);
+    }
+  </script>
+</body>
+</html>
