@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Discipline Clicker (Test Mode)</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Supabase JS Library -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <style>
@@ -29,7 +28,6 @@
       display: none !important;
     }
 
-    /* Фоновые анимированные частицы */
     .bg-particles {
       position: absolute;
       inset: 0;
@@ -147,10 +145,8 @@
 </head>
 <body class="dark-purple-bg min-h-screen text-purple-100 flex flex-col justify-between relative">
 
-  <!-- Фоновые анимированные элементы -->
   <div class="bg-particles" id="particles-container"></div>
 
-  <!-- ЭКРАН ЗАГРУЗКИ -->
   <div id="loader-screen" class="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
     <h1 id="loader-title" class="text-2xl sm:text-3xl font-extrabold tracking-wider text-white mb-2 drop-shadow-[0_0_12px_rgba(255,255,255,0.4)] text-center">ДИСЦИПЛИНА КЛИКЕР</h1>
     <p id="loader-status" class="text-purple-300 text-xs sm:text-sm font-semibold tracking-wide mb-6">Загрузка данных...</p>
@@ -159,10 +155,8 @@
     </div>
   </div>
 
-  <!-- HEADER -->
   <header class="w-full px-3 sm:px-6 py-2.5 flex items-center justify-between z-30 relative bg-purple-950/50 backdrop-blur-md border-b border-purple-800/60 shadow-lg">
     <div class="flex items-center gap-2 relative">
-      <!-- Меню -->
       <button onclick="toggleMenu()" class="p-2 bg-purple-950/80 hover:bg-purple-900/80 text-purple-200 rounded-xl shadow-lg border border-purple-700/50 flex flex-col justify-around w-9 h-9 items-center cursor-pointer active:scale-95">
         <span class="w-4 h-0.5 bg-purple-200 rounded-full"></span>
         <span class="w-4 h-0.5 bg-purple-200 rounded-full"></span>
@@ -175,7 +169,6 @@
         <svg class="w-3.5 h-3.5 text-purple-300 ml-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
       </div>
 
-      <!-- Выпадающее меню -->
       <div id="dropdown-menu" class="hidden absolute top-14 left-0 w-52 bg-zinc-950/95 border border-purple-800/80 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col z-40 backdrop-blur-md modal-anim">
         <button onclick="openModal('upgrades-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
           <span data-i18n="menu_upgrades">Прокачка</span>
@@ -198,7 +191,6 @@
       </div>
     </div>
 
-    <!-- Счетчик Очков -->
     <div class="absolute centered-counter top-2 flex flex-col items-center pointer-events-none z-30">
       <div class="bg-purple-950/90 backdrop-blur-md border border-purple-700/60 rounded-2xl px-4 sm:px-5 py-1 text-center shadow-[0_0_20px_rgba(147,51,234,0.25)] min-w-[150px]">
         <span data-i18n="label_dp" class="text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider text-purple-300/90 block">очки дисциплины</span>
@@ -207,7 +199,6 @@
       </div>
     </div>
 
-    <!-- Кнопки справа -->
     <div class="flex items-center gap-1 z-30">
       <button id="manual-save-btn" onclick="manualSave()" data-i18n="btn_save" class="px-2.5 py-1.5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold text-[11px] rounded-xl shadow-md border border-purple-600/50 transition-all cursor-pointer active:scale-95 disabled:opacity-50">
         Сохранить
@@ -224,7 +215,6 @@
     </div>
   </header>
 
-  <!-- MAIN GAMEPLAY AREA -->
   <main class="flex-1 flex items-center justify-center relative p-3 z-10">
     <div class="relative flex items-center justify-center w-full max-w-4xl">
 
@@ -241,7 +231,6 @@
             <span id="cooldown-text" data-i18n="cooldown_ready" class="text-[9px] font-bold text-purple-300/80 block text-center mt-0.5">Готов к клику</span>
           </div>
 
-          <!-- Энергия -->
           <div class="w-full">
             <div class="w-full h-2 bg-purple-950/90 rounded-full overflow-hidden border border-amber-500/50 p-0.5">
               <div id="energy-bar" class="h-full bg-gradient-to-r from-amber-500 to-yellow-300 rounded-full w-full"></div>
@@ -256,7 +245,6 @@
         </div>
       </div>
 
-      <!-- Real-Time Leaderboard Side Panel -->
       <div id="leaderboard-panel" class="leaderboard-panel absolute left-1/2 ml-24 sm:ml-32 bg-zinc-950/90 border border-purple-800/80 rounded-3xl p-3 shadow-[0_0_30px_rgba(147,51,234,0.3)] backdrop-blur-md z-10 w-60 sm:w-68 overflow-hidden">
         <div class="flex justify-between items-center pb-2 mb-2 border-b border-purple-900/60">
           <span data-i18n="leaderboard_title" class="font-extrabold text-xs text-purple-200">Таблица Лидеров</span>
@@ -270,9 +258,6 @@
     </div>
   </main>
 
-  <!-- MODALS -->
-
-  <!-- МОДАЛКА ОФЛАЙН-ДОХОДА -->
   <div id="offline-income-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-custom flex items-center justify-center p-4">
     <div class="bg-zinc-950 border-2 border-purple-600 rounded-3xl max-w-sm w-full p-6 shadow-[0_0_60px_rgba(168,85,247,0.5)] flex flex-col items-center text-center modal-anim">
       <div class="w-16 h-16 bg-purple-900/60 border border-purple-500 rounded-full flex items-center justify-center mb-3 shadow-inner">
@@ -288,7 +273,6 @@
     </div>
   </div>
 
-  <!-- МОДАЛКА ВХОДЯЩЕЙ ЗАЯВКИ В ДРУЗЬЯ -->
   <div id="friend-request-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-custom flex items-center justify-center p-4">
     <div class="bg-zinc-950 border-2 border-purple-600 rounded-3xl max-w-sm w-full p-6 shadow-[0_0_60px_rgba(168,85,247,0.5)] flex flex-col items-center text-center modal-anim">
       <div class="w-16 h-16 bg-purple-900/60 border border-purple-500 rounded-full flex items-center justify-center mb-3 shadow-inner">
@@ -304,7 +288,6 @@
     </div>
   </div>
 
-  <!-- МОДАЛКА ДРУЗЕЙ -->
   <div id="friends-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
     <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[80vh] modal-anim">
       <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
@@ -312,7 +295,6 @@
         <button onclick="closeModal('friends-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
       </div>
 
-      <!-- Ваша плашка никнейма с кнопкой скопировать -->
       <div class="my-2 p-2 bg-purple-900/40 border border-purple-700/50 rounded-xl flex justify-between items-center text-xs">
         <span class="text-purple-300 font-semibold">Ваш ник: <b id="my-copy-nick-text" class="text-white">@Tester</b></span>
         <button onclick="copyMyUsername()" class="px-2.5 py-1 bg-purple-700 hover:bg-purple-600 text-white font-bold rounded-lg text-[10px] transition-all">Скопировать</button>
@@ -329,7 +311,6 @@
     </div>
   </div>
 
-  <!-- МОДАЛКА ЛОГОВ -->
   <div id="logs-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
     <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[80vh] modal-anim">
       <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
@@ -343,7 +324,6 @@
     </div>
   </div>
 
-  <!-- МОДАЛКА ПЕРЕВОДА DP -->
   <div id="transfer-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
     <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col modal-anim">
       <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
@@ -379,7 +359,6 @@
         <button onclick="closeModal('upgrades-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
       </div>
       <div class="flex-1 overflow-y-auto py-3 space-y-3 no-scrollbar text-xs">
-        <!-- Мульти-клик -->
         <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
           <div>
             <h3 data-i18n="upg_multiclick_title" class="font-bold text-purple-100">Мульти-клик</h3>
@@ -541,7 +520,6 @@
     </div>
   </div>
 
-  <!-- Уведомления (Тосты) -->
   <div id="toast" onclick="hideToastImmediately()" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-purple-950 text-purple-100 px-5 py-2.5 rounded-2xl shadow-[0_0_25px_rgba(168,85,247,0.5)] text-xs font-bold border border-purple-600/50 opacity-0 pointer-events-none translate-y-4 cursor-pointer">
     Сообщение
   </div>
@@ -804,7 +782,6 @@
         }
       };
 
-      // Гарантированный сброс экрана загрузки через 1.5 секунды во избежание бесконечного зависания
       const safetyTimeout = setTimeout(hideLoader, 1500);
 
       try {
@@ -823,7 +800,7 @@
 
         const dps = (state.passiveLvl || 0) * 2;
         if (secondsPassed > 5 && dps > 0) {
-          const maxOfflineSeconds = 86400; // до 24 часов
+          const maxOfflineSeconds = 86400;
           const actualSeconds = Math.min(secondsPassed, maxOfflineSeconds);
           pendingOfflineEarned = actualSeconds * dps;
         }
@@ -1623,7 +1600,6 @@
     }
 
     function updateUpgradesUI() {
-      // Мульти-клик
       const multiCost = getUpgradeCost('multiClick');
       const multiBtn = document.getElementById('upg-multiclick-btn');
       document.getElementById('upg-multiclick-desc').innerText = `Клик за тап: ${1 + (state.multiClickLvl || 0)}`;
@@ -1766,7 +1742,6 @@
     }
 
     function applySettings() {
-      // Применение настроек
     }
 
     function resetProgress() {
