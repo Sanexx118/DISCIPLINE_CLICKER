@@ -272,6 +272,22 @@
 
   <!-- MODALS -->
 
+  <!-- МОДАЛКА ОФЛАЙН-ДОХОДА -->
+  <div id="offline-income-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-custom flex items-center justify-center p-4">
+    <div class="bg-zinc-950 border-2 border-purple-600 rounded-3xl max-w-sm w-full p-6 shadow-[0_0_60px_rgba(168,85,247,0.5)] flex flex-col items-center text-center modal-anim">
+      <div class="w-16 h-16 bg-purple-900/60 border border-purple-500 rounded-full flex items-center justify-center mb-3 shadow-inner">
+        <svg class="w-8 h-8 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path></svg>
+      </div>
+      <h2 class="text-xl font-black text-purple-100 mb-1">С возвращением!</h2>
+      <p class="text-xs text-purple-300 font-semibold mb-2">Пока вас не было, ваш Пассивный Фокус заработал:</p>
+      <p id="offline-earned-amount" class="text-2xl font-black text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.6)] mb-5">+0 DP</p>
+      
+      <button onclick="claimOfflineIncome()" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-extrabold text-sm rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer">
+        Забрать
+      </button>
+    </div>
+  </div>
+
   <!-- МОДАЛКА ВХОДЯЩЕЙ ЗАЯВКИ В ДРУЗЬЯ -->
   <div id="friend-request-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-custom flex items-center justify-center p-4">
     <div class="bg-zinc-950 border-2 border-purple-600 rounded-3xl max-w-sm w-full p-6 shadow-[0_0_60px_rgba(168,85,247,0.5)] flex flex-col items-center text-center modal-anim">
@@ -363,6 +379,16 @@
         <button onclick="closeModal('upgrades-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
       </div>
       <div class="flex-1 overflow-y-auto py-3 space-y-3 no-scrollbar text-xs">
+        <!-- Мульти-клик -->
+        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+          <div>
+            <h3 data-i18n="upg_multiclick_title" class="font-bold text-purple-100">Мульти-клик</h3>
+            <p id="upg-multiclick-desc" class="text-[10px] text-purple-300/80">Клик за тап: 1</p>
+            <p id="upg-multiclick-lvl" class="text-[10px] font-bold text-purple-400 mt-0.5">Уровень: 0 / 10</p>
+          </div>
+          <button id="upg-multiclick-btn" onclick="buyUpgrade('multiClick')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">200 DP</button>
+        </div>
+
         <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
           <div>
             <h3 data-i18n="upg_cooldown_title" class="font-bold text-purple-100">Уменьшение Кулдауна</h3>
@@ -417,6 +443,7 @@
       <div class="flex gap-2 my-2.5 p-1 bg-purple-950/60 rounded-xl border border-purple-800/40 text-xs">
         <button id="shop-tab-boosts" onclick="switchShopTab('boosts')" data-i18n="shop_tab_boosts" class="flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all">Бусты</button>
         <button id="shop-tab-skins" onclick="switchShopTab('skins')" data-i18n="shop_tab_skins" class="flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all">Скины</button>
+        <button id="shop-tab-roles" onclick="switchShopTab('roles')" data-i18n="shop_tab_roles" class="flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all">Роли</button>
       </div>
       <div class="flex-1 overflow-y-auto py-2 space-y-3 no-scrollbar text-xs">
         <div id="shop-section-boosts" class="space-y-2.5">
@@ -461,6 +488,13 @@
               </div>
             </div>
             <button id="skin-btn-stalin" onclick="handleSkinAction('resurs/STALIN.png', 2000)" class="px-3 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px]">2 000 DP</button>
+          </div>
+        </div>
+
+        <div id="shop-section-roles" class="hidden space-y-2.5">
+          <div class="bg-purple-950/40 p-6 rounded-2xl border border-purple-800/50 text-center">
+            <p data-i18n="roles_not_available" class="text-sm font-bold text-purple-300">Пока недоступно</p>
+            <p class="text-[10px] text-purple-400/70 mt-1">Данная функция появится в следующих обновлениях!</p>
           </div>
         </div>
       </div>
@@ -535,6 +569,7 @@
         btn_add_friend: "Добавить",
         select_friend: "Друзья...",
         upgrades_title: "Прокачка",
+        upg_multiclick_title: "Мульти-клик",
         upg_cooldown_title: "Уменьшение Кулдауна",
         upg_click_title: "Сила Клика",
         upg_energy_title: "Максимум Энергии",
@@ -544,6 +579,8 @@
         shop_title: "Магазин",
         shop_tab_boosts: "Бусты",
         shop_tab_skins: "Скины",
+        shop_tab_roles: "Роли",
+        roles_not_available: "Пока недоступно",
         boost_title: "Ускорение 2x (30с)",
         boost_desc: "Удваивает клики",
         skin_joker: "Оригинальный Джокер",
@@ -590,6 +627,7 @@
         btn_add_friend: "Add",
         select_friend: "Friends...",
         upgrades_title: "Upgrades",
+        upg_multiclick_title: "Multi-Click",
         upg_cooldown_title: "Cooldown Reduction",
         upg_click_title: "Click Power",
         upg_energy_title: "Max Energy",
@@ -599,6 +637,8 @@
         shop_title: "Shop",
         shop_tab_boosts: "Boosts",
         shop_tab_skins: "Skins",
+        shop_tab_roles: "Roles",
+        roles_not_available: "Not available yet",
         boost_title: "2x Boost (30s)",
         boost_desc: "Doubles clicks",
         skin_joker: "Original Joker",
@@ -639,6 +679,7 @@
     let state = {
       score: 0,
       clickPower: 1,
+      multiClickLvl: 0,
       cooldownLvl: 0,
       cooldownMs: 200,
       passiveLvl: 0,
@@ -675,6 +716,7 @@
     let energyRegenTimer = null;
     let toastTimeout = null;
     let currentIncomingRequestSender = null;
+    let pendingOfflineEarned = 0;
 
     function t(key) {
       const l = state.lang || 'ru';
@@ -757,11 +799,13 @@
             loader.classList.add('hidden');
             startAutoSaveTimer();
             startPassiveIncome();
+            checkOfflineIncome();
           }, 400);
         }
       };
 
-      const safetyTimeout = setTimeout(hideLoader, 1200);
+      // Гарантированный сброс экрана загрузки через 1.5 секунды во избежание бесконечного зависания
+      const safetyTimeout = setTimeout(hideLoader, 1500);
 
       try {
         await loadFromCloud();
@@ -775,6 +819,13 @@
         if (secondsPassed > 0 && state.currentEnergy < state.maxEnergy) {
           const recovered = Math.floor((secondsPassed * 1000) / state.regenIntervalMs);
           state.currentEnergy = Math.min(state.maxEnergy, state.currentEnergy + recovered);
+        }
+
+        const dps = (state.passiveLvl || 0) * 2;
+        if (secondsPassed > 5 && dps > 0) {
+          const maxOfflineSeconds = 86400; // до 24 часов
+          const actualSeconds = Math.min(secondsPassed, maxOfflineSeconds);
+          pendingOfflineEarned = actualSeconds * dps;
         }
       }
 
@@ -791,6 +842,25 @@
 
       setInterval(fetchLeaderboard, 10000);
     });
+
+    function checkOfflineIncome() {
+      if (pendingOfflineEarned > 0) {
+        const earnedEl = document.getElementById('offline-earned-amount');
+        if (earnedEl) earnedEl.innerText = `+${Math.floor(pendingOfflineEarned).toLocaleString('ru-RU')} DP`;
+        document.getElementById('offline-income-modal').classList.remove('hidden');
+      }
+    }
+
+    function claimOfflineIncome() {
+      if (pendingOfflineEarned > 0) {
+        state.score += pendingOfflineEarned;
+        addLog(`Получен офлайн-доход: +${Math.floor(pendingOfflineEarned)} DP`);
+        pendingOfflineEarned = 0;
+        updateUI();
+        saveToCloud();
+      }
+      document.getElementById('offline-income-modal').classList.add('hidden');
+    }
 
     function createParticles() {
       const container = document.getElementById('particles-container');
@@ -1184,17 +1254,20 @@
       const playerId = getPlayerId();
       if (!playerId) return;
 
-      const { data, error } = await supabaseClient.from('players').select('*').eq('id', playerId);
-      if (error) return;
+      try {
+        const fetchPromise = supabaseClient.from('players').select('*').eq('id', playerId);
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500));
+        
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+        if (error) return;
 
-      if (data && data.length > 0 && data[0].data) {
-        try {
+        if (data && data.length > 0 && data[0].data) {
           const savedState = JSON.parse(data[0].data);
           state = { ...state, ...savedState };
           updateLogsUI();
           processIncomingRequests();
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     }
 
     async function fetchLeaderboard() {
@@ -1236,17 +1309,20 @@
       const now = Date.now();
       if (now - lastClickTime < state.cooldownMs) return;
 
-      if (state.currentEnergy <= 0) {
+      const multiClicksCount = 1 + (state.multiClickLvl || 0);
+
+      if (state.currentEnergy < multiClicksCount) {
         showToast('Недостаточно энергии!');
         return;
       }
 
       lastClickTime = now;
-      state.currentEnergy--;
+      state.currentEnergy -= multiClicksCount;
 
       const skinMult = getSkinMultiplier(state.currentSkin);
-      const gained = Math.round(state.clickPower * state.boostMultiplier * skinMult);
-      state.score += gained;
+      const gainedPerSingleClick = Math.round(state.clickPower * state.boostMultiplier * skinMult);
+      const totalGained = gainedPerSingleClick * multiClicksCount;
+      state.score += totalGained;
 
       playClickSounds();
       updateUI();
@@ -1254,7 +1330,7 @@
       triggerCooldownAnimation();
 
       if (state.enableAnimations && e.clientX) {
-        spawnFloatingText(e, `+${gained}`);
+        spawnFloatingText(e, `+${totalGained}`);
         spawnLocalMilkSplash(e);
       }
     }
@@ -1290,7 +1366,8 @@
       const bar = document.getElementById('cooldown-bar');
       const text = document.getElementById('cooldown-text');
 
-      if (state.currentEnergy <= 0) {
+      const multiClicksCount = 1 + (state.multiClickLvl || 0);
+      if (state.currentEnergy < multiClicksCount) {
         btn.classList.add('pointer-events-none', 'opacity-50', 'cursor-not-allowed');
         text.innerText = t('cooldown_no_energy');
         return;
@@ -1320,7 +1397,8 @@
           cooldownProgressAnim = requestAnimationFrame(step);
         } else {
           bar.style.width = '100%';
-          if (state.currentEnergy > 0) {
+          const multiClicksCount = 1 + (state.multiClickLvl || 0);
+          if (state.currentEnergy >= multiClicksCount) {
             btn.classList.remove('pointer-events-none', 'opacity-80', 'cursor-not-allowed', 'opacity-50');
             text.innerText = t('cooldown_ready');
           }
@@ -1377,19 +1455,29 @@
     function switchShopTab(tab) {
       const boostsSec = document.getElementById('shop-section-boosts');
       const skinsSec = document.getElementById('shop-section-skins');
+      const rolesSec = document.getElementById('shop-section-roles');
+      
       const boostsTab = document.getElementById('shop-tab-boosts');
       const skinsTab = document.getElementById('shop-tab-skins');
+      const rolesTab = document.getElementById('shop-tab-roles');
+
+      boostsSec.classList.add('hidden');
+      skinsSec.classList.add('hidden');
+      rolesSec.classList.add('hidden');
+
+      boostsTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
+      skinsTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
+      rolesTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
 
       if (tab === 'boosts') {
         boostsSec.classList.remove('hidden');
-        skinsSec.classList.add('hidden');
         boostsTab.className = 'flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all';
-        skinsTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
-      } else {
-        boostsSec.classList.add('hidden');
+      } else if (tab === 'skins') {
         skinsSec.classList.remove('hidden');
         skinsTab.className = 'flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all';
-        boostsTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
+      } else if (tab === 'roles') {
+        rolesSec.classList.remove('hidden');
+        rolesTab.className = 'flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all';
       }
     }
 
@@ -1439,6 +1527,7 @@
     }
 
     function getUpgradeCost(type) {
+      if (type === 'multiClick') return state.multiClickLvl >= 10 ? Infinity : Math.floor(200 * Math.pow(1.4, state.multiClickLvl));
       if (type === 'cooldown') return state.cooldownLvl >= 10 ? Infinity : Math.floor(100 * Math.pow(1.35, state.cooldownLvl));
       if (type === 'click') return state.clickPower >= 20 ? Infinity : Math.floor(50 * Math.pow(1.25, state.clickPower - 1));
       if (type === 'maxEnergy') return state.energyLvl >= 20 ? Infinity : Math.floor(120 * Math.pow(1.25, state.energyLvl));
@@ -1452,7 +1541,11 @@
       if (state.score < cost) return;
       state.score -= cost;
 
-      if (type === 'cooldown') { 
+      if (type === 'multiClick') {
+        state.multiClickLvl = (state.multiClickLvl || 0) + 1;
+        addLog(`Мульти-клик улучшен (ур. ${state.multiClickLvl})`);
+      }
+      else if (type === 'cooldown') { 
         state.cooldownLvl++; 
         state.cooldownMs = state.cooldownLvl === 10 ? 0 : 200 - state.cooldownLvl * 20; 
         addLog(`Улучшен кулдаун (ур. ${state.cooldownLvl})`);
@@ -1530,6 +1623,19 @@
     }
 
     function updateUpgradesUI() {
+      // Мульти-клик
+      const multiCost = getUpgradeCost('multiClick');
+      const multiBtn = document.getElementById('upg-multiclick-btn');
+      document.getElementById('upg-multiclick-desc').innerText = `Клик за тап: ${1 + (state.multiClickLvl || 0)}`;
+      document.getElementById('upg-multiclick-lvl').innerText = `Уровень: ${state.multiClickLvl || 0} / 10`;
+      if ((state.multiClickLvl || 0) >= 10) {
+        multiBtn.innerText = 'MAX';
+        multiBtn.disabled = true;
+      } else {
+        multiBtn.innerText = `${multiCost.toLocaleString('ru-RU')} DP`;
+        multiBtn.disabled = state.score < multiCost;
+      }
+
       const cdCost = getUpgradeCost('cooldown');
       const cdBtn = document.getElementById('upg-cooldown-btn');
       const cdDesc = document.getElementById('upg-cooldown-desc');
