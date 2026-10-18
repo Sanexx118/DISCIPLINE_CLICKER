@@ -2,9 +2,10 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Discipline Clicker (Test Mode)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discipline Clicker</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Supabase JS Library -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <style>
@@ -13,40 +14,10 @@
       user-select: none;
       -webkit-user-select: none;
       touch-action: manipulation;
-      overflow: hidden;
     }
     
     .dark-purple-bg {
       background: radial-gradient(circle at center, #1e0b36 0%, #120524 40%, #090214 75%, #030008 100%);
-    }
-
-    body.simplified-style {
-      background: #0d041a !important;
-    }
-
-    body.simplified-style .bg-particles {
-      display: none !important;
-    }
-
-    .bg-particles {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 1;
-      overflow: hidden;
-    }
-
-    .particle {
-      position: absolute;
-      background: rgba(192, 132, 252, 0.15);
-      border-radius: 50%;
-      animation: floatParticle 8s infinite linear;
-    }
-
-    @keyframes floatParticle {
-      0% { transform: translateY(100vh) scale(0.5); opacity: 0; }
-      50% { opacity: 0.8; }
-      100% { transform: translateY(-10vh) scale(1.2); opacity: 0; }
     }
 
     .clicker-btn-sq {
@@ -70,9 +41,32 @@
     }
 
     @keyframes milkBlobImpact {
-      0% { transform: scale(0.3) translateY(0px); opacity: 0.95; border-radius: 50%; }
-      40% { transform: scale(1.4, 0.7) translateY(4px); opacity: 0.85; border-radius: 40% 60% 50% 50% / 60% 40% 60% 40%; }
-      100% { transform: scale(2.2, 1.8) translateY(15px); opacity: 0; border-radius: 30% 70% 40% 60% / 50% 50% 50% 50%; }
+      0% {
+        transform: scale(0.3) translateY(0px);
+        opacity: 0.95;
+        border-radius: 50%;
+      }
+      40% {
+        transform: scale(1.4, 0.7) translateY(4px);
+        opacity: 0.85;
+        border-radius: 40% 60% 50% 50% / 60% 40% 60% 40%;
+      }
+      100% {
+        transform: scale(2.2, 1.8) translateY(15px);
+        opacity: 0;
+        border-radius: 30% 70% 40% 60% / 50% 50% 50% 50%;
+      }
+    }
+
+    @keyframes milkMicroDroplet {
+      0% { transform: translate(0, 0) scale(0.5); opacity: 1; }
+      60% { opacity: 0.8; }
+      100% { transform: translate(var(--dx), var(--dy)) scale(1.2); opacity: 0; }
+    }
+
+    @keyframes milkRippleWave {
+      0% { transform: scale(0.2); opacity: 0.8; }
+      100% { transform: scale(2.5); opacity: 0; }
     }
 
     .milk-blob {
@@ -82,6 +76,25 @@
       filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
       animation: milkBlobImpact 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
       z-index: 9999;
+    }
+
+    .milk-droplet {
+      position: fixed;
+      pointer-events: none;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+      animation: milkMicroDroplet 0.55s ease-out forwards;
+      z-index: 10000;
+    }
+
+    .milk-ripple {
+      position: fixed;
+      pointer-events: none;
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      animation: milkRippleWave 0.45s ease-out forwards;
+      z-index: 9998;
     }
 
     .floating-text {
@@ -131,516 +144,494 @@
     }
 
     .leaderboard-panel.open {
-      max-width: 280px;
+      max-width: 300px;
       opacity: 1;
       white-space: normal;
       pointer-events: auto;
       transform: translateX(0px);
     }
 
-    #toast {
-      transition: opacity 0.3s ease, transform 0.3s ease;
+    body.no-animations *:not(.centered-counter),
+    body.no-animations *:not(.centered-counter)::before,
+    body.no-animations *:not(.centered-counter)::after {
+      animation: none !important;
+      transition: none !important;
     }
   </style>
 </head>
-<body class="dark-purple-bg min-h-screen text-purple-100 flex flex-col justify-between relative">
+<body class="dark-purple-bg min-h-screen text-purple-100 flex flex-col justify-between overflow-hidden relative">
 
-  <div class="bg-particles" id="particles-container"></div>
-
+  <!-- ЭКРАН ЗАГРУЗКИ / АВТОРИЗАЦИИ -->
   <div id="loader-screen" class="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
-    <h1 id="loader-title" class="text-2xl sm:text-3xl font-extrabold tracking-wider text-white mb-2 drop-shadow-[0_0_12px_rgba(255,255,255,0.4)] text-center">ДИСЦИПЛИНА КЛИКЕР</h1>
-    <p id="loader-status" class="text-purple-300 text-xs sm:text-sm font-semibold tracking-wide mb-6">Загрузка данных...</p>
-    <div class="w-48 sm:w-64 h-2.5 bg-purple-950 rounded-full overflow-hidden border border-purple-800/60 shadow-inner">
-      <div class="h-full bg-purple-500 rounded-full w-full animate-pulse"></div>
+    <h1 id="loader-title" class="text-3xl font-extrabold tracking-wider text-white mb-2 drop-shadow-[0_0_12px_rgba(255,255,255,0.4)] text-center">ДИСЦИПЛИНА КЛИКЕР</h1>
+    
+    <div id="loader-progress-box" class="flex flex-col items-center">
+      <p id="loader-status" class="text-purple-300 text-sm font-semibold tracking-wide mb-6">Загрузка...</p>
+      <div class="w-64 h-3 bg-purple-950 rounded-full overflow-hidden border border-purple-800/60 shadow-inner">
+        <div id="loader-bar" class="h-full bg-purple-500 rounded-full w-1/4 animate-pulse"></div>
+      </div>
+    </div>
+
+    <!-- Блок обязательного входа через Discord -->
+    <div id="loader-auth-box" class="hidden flex flex-col items-center max-w-sm text-center mt-4">
+      <p data-i18n="auth_required_desc" class="text-purple-300/90 text-xs font-semibold mb-5">Для доступа к игре требуется авторизация через Discord</p>
+      <button onclick="loginWithDiscord()" data-i18n="login_discord" class="px-6 py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold text-sm rounded-2xl transition-all shadow-[0_0_20px_rgba(88,101,242,0.4)] flex items-center justify-center gap-2 cursor-pointer active:scale-95">
+        Войти через Discord
+      </button>
     </div>
   </div>
 
-  <header class="w-full px-3 sm:px-6 py-2.5 flex items-center justify-between z-30 relative bg-purple-950/50 backdrop-blur-md border-b border-purple-800/60 shadow-lg">
-    <div class="flex items-center gap-2 relative">
-      <button onclick="toggleMenu()" class="p-2 bg-purple-950/80 hover:bg-purple-900/80 text-purple-200 rounded-xl shadow-lg border border-purple-700/50 flex flex-col justify-around w-9 h-9 items-center cursor-pointer active:scale-95">
-        <span class="w-4 h-0.5 bg-purple-200 rounded-full"></span>
-        <span class="w-4 h-0.5 bg-purple-200 rounded-full"></span>
-        <span class="w-4 h-0.5 bg-purple-200 rounded-full"></span>
-      </button>
-
-      <div id="user-profile-badge" onclick="copyMyUsername()" title="Нажмите, чтобы скопировать ник" class="hidden sm:flex items-center gap-2 bg-purple-900/60 border border-purple-700/60 px-2.5 py-1 rounded-xl shadow-inner cursor-pointer hover:bg-purple-800/80 transition-all">
-        <img id="user-avatar" src="resurs/eskere.png" alt="Avatar" class="w-6 h-6 rounded-lg object-cover border border-purple-400/50" onerror="handleImageError(this)">
-        <span id="user-nickname" class="text-xs font-extrabold text-white max-w-[120px] truncate">@Tester</span>
-        <svg class="w-3.5 h-3.5 text-purple-300 ml-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+  <!-- HEADER С ВЫДЕЛЯЮЩЕЙСЯ ПАНЕЛЬЮ И ПРОФИЛЕМ -->
+  <header class="w-full px-4 sm:px-8 py-3 flex items-center justify-between z-30 relative bg-purple-950/40 backdrop-blur-md border-b border-purple-800/60 shadow-lg">
+    <!-- Блок слева: Профиль и под ним кнопка меню -->
+    <div class="flex flex-col items-start gap-2 relative">
+      <div id="user-profile-badge" class="flex items-center gap-2 bg-purple-900/60 border border-purple-700/60 px-2.5 py-1 rounded-xl shadow-inner">
+        <img id="user-avatar" src="resurs/eskere.png" alt="Avatar" class="w-7 h-7 rounded-lg object-cover border border-purple-400/50" onerror="handleImageError(this)">
+        <span id="user-nickname" class="text-xs font-extrabold text-white max-w-[100px] sm:max-w-[140px] truncate">@Guest</span>
       </div>
 
-      <div id="dropdown-menu" class="hidden absolute top-14 left-0 w-52 bg-zinc-950/95 border border-purple-800/80 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col z-40 backdrop-blur-md modal-anim">
-        <button onclick="openModal('upgrades-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
+      <button onclick="toggleMenu()" class="p-2.5 bg-purple-950/80 hover:bg-purple-900/80 text-purple-200 rounded-xl shadow-lg border border-purple-700/50 focus:outline-none transition-all flex flex-col justify-around w-10 h-10 items-center cursor-pointer active:scale-95">
+        <span class="w-5 h-0.5 bg-purple-200 rounded-full"></span>
+        <span class="w-5 h-0.5 bg-purple-200 rounded-full"></span>
+        <span class="w-5 h-0.5 bg-purple-200 rounded-full"></span>
+      </button>
+
+      <div id="dropdown-menu" class="hidden absolute top-20 left-0 w-56 bg-zinc-950/95 border border-purple-800/80 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col z-40 backdrop-blur-md modal-anim">
+        <button onclick="openModal('upgrades-modal')" class="px-5 py-3.5 text-left font-bold text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between transition-colors">
           <span data-i18n="menu_upgrades">Прокачка</span>
+          <span data-i18n="menu_upgrades_tag" class="text-xs text-purple-300 bg-purple-900/60 border border-purple-700/50 px-2 py-0.5 rounded-full">Улучшения</span>
         </button>
-        <button onclick="openModal('shop-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
+        <button onclick="openModal('shop-modal')" class="px-5 py-3.5 text-left font-bold text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between transition-colors">
           <span data-i18n="menu_shop">Магазин</span>
+          <span data-i18n="menu_shop_tag" class="text-xs text-purple-300 bg-purple-900/60 border border-purple-700/50 px-2 py-0.5 rounded-full">Скины</span>
         </button>
-        <button onclick="openModal('friends-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
-          <span data-i18n="menu_friends">Друзья</span>
-        </button>
-        <button onclick="openModal('transfer-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
+        <button onclick="openModal('transfer-modal')" class="px-5 py-3.5 text-left font-bold text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between transition-colors">
           <span data-i18n="menu_transfer">Перевод DP</span>
+          <span data-i18n="menu_transfer_tag" class="text-xs text-emerald-300 bg-emerald-950/80 border border-emerald-700/50 px-2 py-0.5 rounded-full">Перевод</span>
         </button>
-        <button onclick="openModal('logs-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
+        <button onclick="openModal('logs-modal')" class="px-5 py-3.5 text-left font-bold text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between transition-colors">
           <span data-i18n="menu_logs">Логи</span>
         </button>
-        <button onclick="openModal('settings-modal')" class="px-4 py-3 text-left font-bold text-xs text-purple-200 hover:bg-purple-900/50 border-b border-purple-900/50 flex items-center justify-between">
+        <button onclick="openModal('settings-modal')" class="px-5 py-3.5 text-left font-bold text-purple-200 hover:bg-purple-900/50 flex items-center justify-between transition-colors">
           <span data-i18n="menu_settings">Настройки</span>
         </button>
       </div>
     </div>
 
-    <div class="absolute centered-counter top-2 flex flex-col items-center pointer-events-none z-30">
-      <div class="bg-purple-950/90 backdrop-blur-md border border-purple-700/60 rounded-2xl px-4 sm:px-5 py-1 text-center shadow-[0_0_20px_rgba(147,51,234,0.25)] min-w-[150px]">
-        <span data-i18n="label_dp" class="text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wider text-purple-300/90 block">очки дисциплины</span>
-        <span id="score-display" class="text-xl sm:text-2xl font-black text-white tracking-tight drop-shadow-[0_0_10px_rgba(192,132,252,0.8)] leading-tight inline-block transition-transform">0</span>
-        <span id="dps-display" class="text-[9px] sm:text-[10px] font-bold text-purple-400 block">+0 DP/с</span>
+    <!-- Счетчик Очков -->
+    <div class="absolute centered-counter top-3 flex flex-col items-center pointer-events-none z-30">
+      <div class="bg-purple-950/90 backdrop-blur-md border border-purple-700/60 rounded-2xl px-6 sm:px-8 py-1.5 text-center shadow-[0_0_20px_rgba(147,51,234,0.25)] min-w-[180px] sm:min-w-[200px]">
+        <span data-i18n="label_dp" class="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-purple-300/80 block">Очки Дисциплины</span>
+        <span id="score-display" class="text-2xl sm:text-4xl font-black text-white tracking-tight drop-shadow-[0_0_10px_rgba(192,132,252,0.8)] leading-tight inline-block transition-transform">0</span>
+        <span id="dps-display" class="text-[10px] sm:text-xs font-semibold text-purple-400 block mt-0.5">+0 DP/с</span>
       </div>
     </div>
 
-    <div class="flex items-center gap-1 z-30">
-      <button id="manual-save-btn" onclick="manualSave()" data-i18n="btn_save" class="px-2.5 py-1.5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold text-[11px] rounded-xl shadow-md border border-purple-600/50 transition-all cursor-pointer active:scale-95 disabled:opacity-50">
+    <!-- Кнопки справа -->
+    <div class="flex items-center gap-2 z-30">
+      <button id="manual-save-btn" onclick="manualSave()" data-i18n="btn_save" class="px-3 sm:px-4 py-2 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold text-xs sm:text-sm rounded-xl shadow-md border border-purple-600/50 transition-all flex items-center justify-center cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
         Сохранить
       </button>
-      
-      <div class="bg-purple-950/80 border border-purple-800/60 rounded-xl px-2 py-0.5 text-center shadow-xs">
-        <span data-i18n="label_auto" class="text-[7px] font-bold text-purple-400 block leading-none">АВТО</span>
-        <span id="autosave-timer" class="text-[10px] font-black text-purple-200">60s</span>
+      <div class="bg-purple-950/60 border border-purple-800/60 rounded-xl px-2 py-1 text-center shadow-xs">
+        <span data-i18n="label_auto" class="text-[9px] font-bold text-purple-400 block leading-none">АВТО</span>
+        <span id="autosave-timer" class="text-xs font-black text-purple-200">60s</span>
       </div>
-
-      <button onclick="toggleLeaderboard()" data-i18n="btn_top" class="px-2.5 py-1.5 bg-purple-700 hover:bg-purple-600 text-white font-bold text-[11px] rounded-xl shadow-md border border-purple-500/50 transition-all cursor-pointer active:scale-95">
+      <button onclick="toggleLeaderboard()" data-i18n="btn_top" class="px-3 py-2 bg-purple-700 hover:bg-purple-600 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md border border-purple-500/50 transition-all cursor-pointer active:scale-95">
         Топ
       </button>
     </div>
   </header>
 
-  <main class="flex-1 flex items-center justify-center relative p-3 z-10">
+  <!-- MAIN GAMEPLAY AREA -->
+  <main class="flex-1 flex items-center justify-center relative p-4">
     <div class="relative flex items-center justify-center w-full max-w-4xl">
 
       <div class="relative flex flex-col items-center justify-center z-20">
-        <button id="clicker-btn" onclick="handleClick(event)" class="clicker-btn-sq relative w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-purple-950/40 border-2 border-purple-500/70 hover:scale-105 active:scale-95 transition-all duration-100 select-none overflow-hidden cursor-pointer shadow-[0_0_30px_rgba(168,85,247,0.3)] flex items-center justify-center">
+        <button id="clicker-btn" onclick="handleClick(event)" class="clicker-btn-sq relative w-36 h-36 sm:w-44 sm:h-44 rounded-3xl bg-purple-950/40 border-2 border-purple-500/70 hover:scale-105 active:scale-95 transition-all duration-100 select-none overflow-hidden cursor-pointer shadow-[0_0_30px_rgba(168,85,247,0.3)] flex items-center justify-center">
           <img id="main-clicker-img" src="resurs/eskere.png" alt="Discipline" class="w-full h-full object-cover pointer-events-none transition-all" onerror="handleImageError(this)">
         </button>
 
-        <div class="w-32 sm:w-40 mt-3 flex flex-col items-center gap-1.5">
+        <div class="w-36 sm:w-44 mt-3 flex flex-col items-center gap-2">
           <div class="w-full">
             <div class="w-full h-2 bg-purple-950/80 rounded-full overflow-hidden border border-purple-800/60 p-0.5 shadow-inner">
               <div id="cooldown-bar" class="h-full bg-gradient-to-r from-purple-600 to-fuchsia-500 rounded-full w-full"></div>
             </div>
-            <span id="cooldown-text" data-i18n="cooldown_ready" class="text-[9px] font-bold text-purple-300/80 block text-center mt-0.5">Готов к клику</span>
+            <span id="cooldown-text" data-i18n="cooldown_ready" class="text-[10px] font-bold text-purple-300/80 block text-center mt-0.5">Готов к клику</span>
           </div>
 
           <div class="w-full">
-            <div class="w-full h-2 bg-purple-950/90 rounded-full overflow-hidden border border-amber-500/50 p-0.5">
+            <div class="w-full h-2.5 bg-purple-950/90 rounded-full overflow-hidden border border-amber-500/50 p-0.5 shadow-inner">
               <div id="energy-bar" class="h-full bg-gradient-to-r from-amber-500 to-yellow-300 rounded-full w-full"></div>
             </div>
-            <div class="flex justify-between items-center text-[9px] font-bold text-amber-300/90 px-0.5 mt-0.5">
-              <span class="flex items-center gap-1">
-                <svg class="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path></svg>
-              </span>
+            <div class="flex justify-between items-center text-[10px] font-bold text-amber-300/90 px-0.5 mt-0.5">
+              <span data-i18n="label_energy">Энергия</span>
               <span id="energy-text">100 / 100</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div id="leaderboard-panel" class="leaderboard-panel absolute left-1/2 ml-24 sm:ml-32 bg-zinc-950/90 border border-purple-800/80 rounded-3xl p-3 shadow-[0_0_30px_rgba(147,51,234,0.3)] backdrop-blur-md z-10 w-60 sm:w-68 overflow-hidden">
+      <!-- Real-Time Leaderboard Side Panel -->
+      <div id="leaderboard-panel" class="leaderboard-panel absolute left-1/2 ml-28 sm:ml-36 bg-zinc-950/90 border border-purple-800/80 rounded-3xl p-3 shadow-[0_0_30px_rgba(147,51,234,0.3)] backdrop-blur-md z-10 w-64 sm:w-72 overflow-hidden">
         <div class="flex justify-between items-center pb-2 mb-2 border-b border-purple-900/60">
-          <span data-i18n="leaderboard_title" class="font-extrabold text-xs text-purple-200">Таблица Лидеров</span>
+          <h3 data-i18n="leaderboard_title" class="font-extrabold text-xs text-purple-200">Таблица Лидеров</h3>
           <button onclick="toggleLeaderboard()" class="text-purple-400 hover:text-purple-200 text-xs font-bold">&times;</button>
         </div>
-        <div id="leaderboard-list" class="space-y-1.5 text-xs max-h-48 overflow-y-auto no-scrollbar pr-0.5">
-          <div class="text-center text-purple-400 py-3">Загрузка топа...</div>
+
+        <div id="auth-status-box" class="mb-2 p-2 bg-purple-950/50 border border-purple-800/50 rounded-xl text-center">
+          <span id="user-status-text" data-i18n="guest_status" class="text-[11px] font-bold text-purple-300 block mb-1">Гость</span>
+        </div>
+
+        <div id="leaderboard-list" class="space-y-1.5 text-xs max-h-52 overflow-y-auto no-scrollbar pr-0.5">
+          <div class="text-center text-purple-400 py-4">Загрузка топа...</div>
         </div>
       </div>
 
     </div>
   </main>
 
-  <div id="offline-income-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-custom flex items-center justify-center p-4">
-    <div class="bg-zinc-950 border-2 border-purple-600 rounded-3xl max-w-sm w-full p-6 shadow-[0_0_60px_rgba(168,85,247,0.5)] flex flex-col items-center text-center modal-anim">
-      <div class="w-16 h-16 bg-purple-900/60 border border-purple-500 rounded-full flex items-center justify-center mb-3 shadow-inner">
-        <svg class="w-8 h-8 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path></svg>
-      </div>
-      <h2 class="text-xl font-black text-purple-100 mb-1">С возвращением!</h2>
-      <p class="text-xs text-purple-300 font-semibold mb-2">Пока вас не было, ваш Пассивный Фокус заработал:</p>
-      <p id="offline-earned-amount" class="text-2xl font-black text-amber-300 drop-shadow-[0_0_10px_rgba(251,191,36,0.6)] mb-5">+0 DP</p>
-      
-      <button onclick="claimOfflineIncome()" class="w-full py-3 bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-extrabold text-sm rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer">
-        Забрать
-      </button>
-    </div>
-  </div>
+  <!-- MODALS -->
 
-  <div id="friend-request-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-custom flex items-center justify-center p-4">
-    <div class="bg-zinc-950 border-2 border-purple-600 rounded-3xl max-w-sm w-full p-6 shadow-[0_0_60px_rgba(168,85,247,0.5)] flex flex-col items-center text-center modal-anim">
-      <div class="w-16 h-16 bg-purple-900/60 border border-purple-500 rounded-full flex items-center justify-center mb-3 shadow-inner">
-        <svg class="w-8 h-8 text-purple-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
-      </div>
-      <h2 data-i18n="freq_title" class="text-xl font-black text-purple-100 mb-1">Заявка в друзья!</h2>
-      <p id="friend-request-sender" class="text-sm font-extrabold text-amber-300 mb-4">Игрок @Someone хочет добавить вас в друзья</p>
-      
-      <div class="flex gap-3 w-full">
-        <button onclick="acceptFriendRequest()" data-i18n="btn_accept" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all active:scale-95">Принять</button>
-        <button onclick="declineFriendRequest()" data-i18n="btn_decline" class="flex-1 py-3 bg-red-900/80 hover:bg-red-800 text-red-100 font-extrabold text-xs rounded-xl shadow-lg border border-red-700/50 transition-all active:scale-95">Отклонить</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="friends-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
-    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[80vh] modal-anim">
-      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
-        <h2 data-i18n="friends_title" class="text-xl font-black text-purple-200">Список Друзей</h2>
-        <button onclick="closeModal('friends-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
-      </div>
-
-      <div class="my-2 p-2 bg-purple-900/40 border border-purple-700/50 rounded-xl flex justify-between items-center text-xs">
-        <span class="text-purple-300 font-semibold">Ваш ник: <b id="my-copy-nick-text" class="text-white">@Tester</b></span>
-        <button onclick="copyMyUsername()" class="px-2.5 py-1 bg-purple-700 hover:bg-purple-600 text-white font-bold rounded-lg text-[10px] transition-all">Скопировать</button>
-      </div>
-
-      <div class="py-2 flex gap-2">
-        <input id="friend-username-input" type="text" placeholder="Ник друга (без @)" class="flex-1 bg-purple-950/60 border border-purple-700 text-purple-100 text-xs font-semibold rounded-xl px-3 py-2 focus:outline-none focus:border-purple-400">
-        <button onclick="sendFriendRequest()" data-i18n="btn_add_friend" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-md transition-all">Добавить</button>
-      </div>
-      <div id="friends-list" class="flex-1 overflow-y-auto py-2 space-y-2 no-scrollbar text-xs">
-        <div class="text-center text-purple-400 py-4">У вас пока нет друзей</div>
-      </div>
-      <button onclick="closeModal('friends-modal')" data-i18n="btn_close" class="w-full py-2.5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl text-xs border border-purple-700/50 mt-2">Закрыть</button>
-    </div>
-  </div>
-
+  <!-- МОДАЛКА ЛОГОВ -->
   <div id="logs-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
-    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[80vh] modal-anim">
-      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
-        <h2 data-i18n="logs_title" class="text-xl font-black text-purple-200">Логи Событий</h2>
-        <button onclick="closeModal('logs-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-6 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[85vh] modal-anim">
+      <div class="flex justify-between items-center pb-4 border-b border-purple-900/60">
+        <h2 data-i18n="logs_title" class="text-2xl font-black text-purple-200">История Событий (Логи)</h2>
+        <button onclick="closeModal('logs-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-2xl">&times;</button>
       </div>
-      <div id="logs-list" class="flex-1 overflow-y-auto py-3 space-y-2 no-scrollbar text-xs">
-        <div class="text-center text-purple-400 py-3">Нет записей</div>
+      <div id="logs-list" class="flex-1 overflow-y-auto py-4 space-y-2 no-scrollbar text-xs">
+        <div class="text-center text-purple-400 py-4">Нет записей в логах</div>
       </div>
-      <button onclick="closeModal('logs-modal')" data-i18n="btn_close" class="w-full py-2.5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl text-xs transition-all mt-2 border border-purple-700/50">Закрыть</button>
+      <button onclick="closeModal('logs-modal')" data-i18n="btn_close" class="w-full py-3 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl shadow-md transition-all mt-2 border border-purple-700/50">Закрыть</button>
     </div>
   </div>
 
+  <!-- МОДАЛКА ПЕРЕВОДА DP -->
   <div id="transfer-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
-    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col modal-anim">
-      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
-        <h2 data-i18n="transfer_title" class="text-xl font-black text-purple-200">Перевод Очков</h2>
-        <button onclick="closeModal('transfer-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-6 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col modal-anim">
+      <div class="flex justify-between items-center pb-4 border-b border-purple-900/60">
+        <h2 data-i18n="transfer_title" class="text-2xl font-black text-purple-200">Перевод Очков</h2>
+        <button onclick="closeModal('transfer-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-2xl">&times;</button>
       </div>
-      <div class="py-4 space-y-3">
+      <div class="py-5 space-y-4">
         <div>
-          <label data-i18n="transfer_target_label" class="block text-[11px] font-bold text-purple-300 mb-1">Никнейм получателя (без @)</label>
-          <div class="flex gap-2">
-            <input id="transfer-target-input" type="text" placeholder="например: Player123" class="flex-1 bg-purple-950/60 border border-purple-700 text-purple-100 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-purple-400">
-            <select id="transfer-friends-select" onchange="selectFriendForTransfer(this.value)" class="bg-purple-900 border border-purple-700 text-purple-100 text-xs font-bold rounded-xl px-2 py-2.5 focus:outline-none">
-              <option value="" data-i18n="select_friend">Друзья...</option>
-            </select>
-          </div>
+          <label data-i18n="transfer_target_label" class="block text-xs font-bold text-purple-300 mb-1.5">Никнейм получателя (без @)</label>
+          <input id="transfer-target-input" type="text" placeholder="например: Player123" class="w-full bg-purple-950/60 border border-purple-700 text-purple-100 text-sm font-semibold rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-purple-400">
         </div>
         <div>
-          <label data-i18n="transfer_amount_label" class="block text-[11px] font-bold text-purple-300 mb-1">Количество DP</label>
-          <input id="transfer-amount-input" type="number" min="1" placeholder="например: 500" class="w-full bg-purple-950/60 border border-purple-700 text-purple-100 text-xs font-semibold rounded-xl px-3 py-2.5 focus:outline-none focus:border-purple-400">
+          <label data-i18n="transfer_amount_label" class="block text-xs font-bold text-purple-300 mb-1.5">Количество DP</label>
+          <input id="transfer-amount-input" type="number" min="1" placeholder="например: 500" class="w-full bg-purple-950/60 border border-purple-700 text-purple-100 text-sm font-semibold rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-purple-400">
         </div>
       </div>
-      <div class="flex gap-2.5 pt-1">
-        <button id="transfer-submit-btn" onclick="executeTransfer()" data-i18n="btn_send_transfer" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer disabled:opacity-50">Отправить</button>
-        <button onclick="closeModal('transfer-modal')" data-i18n="btn_close" class="py-2.5 px-4 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl text-xs border border-purple-700/50">Закрыть</button>
+      <div class="flex gap-3 pt-2">
+        <button id="transfer-submit-btn" onclick="executeTransfer()" data-i18n="btn_send_transfer" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          Отправить
+        </button>
+        <button onclick="closeModal('transfer-modal')" data-i18n="btn_close" class="py-3 px-5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl shadow-md transition-all cursor-pointer border border-purple-700/50">
+          Закрыть
+        </button>
       </div>
     </div>
   </div>
 
   <div id="upgrades-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
-    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[80vh] modal-anim">
-      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
-        <h2 data-i18n="upgrades_title" class="text-xl font-black text-purple-200">Прокачка</h2>
-        <button onclick="closeModal('upgrades-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-6 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[85vh] modal-anim">
+      <div class="flex justify-between items-center pb-4 border-b border-purple-900/60">
+        <h2 data-i18n="upgrades_title" class="text-2xl font-black text-purple-200">Прокачка</h2>
+        <button onclick="closeModal('upgrades-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-2xl">&times;</button>
       </div>
-      <div class="flex-1 overflow-y-auto py-3 space-y-3 no-scrollbar text-xs">
-        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
-          <div>
-            <h3 data-i18n="upg_multiclick_title" class="font-bold text-purple-100">Мульти-клик</h3>
-            <p id="upg-multiclick-desc" class="text-[10px] text-purple-300/80">Клик за тап: 1</p>
-            <p id="upg-multiclick-lvl" class="text-[10px] font-bold text-purple-400 mt-0.5">Уровень: 0 / 10</p>
-          </div>
-          <button id="upg-multiclick-btn" onclick="buyUpgrade('multiClick')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">200 DP</button>
-        </div>
 
-        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+      <div class="flex-1 overflow-y-auto py-4 space-y-4 no-scrollbar">
+        <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
           <div>
             <h3 data-i18n="upg_cooldown_title" class="font-bold text-purple-100">Уменьшение Кулдауна</h3>
-            <p id="upg-cooldown-desc" class="text-[10px] text-purple-300/80">Задержка: 200мс</p>
-            <p id="upg-cooldown-lvl" class="text-[10px] font-bold text-purple-400 mt-0.5">Уровень: 0 / 10</p>
+            <p id="upg-cooldown-desc" class="text-xs text-purple-300/80">Задержка: 200мс</p>
+            <p id="upg-cooldown-lvl" class="text-xs font-bold text-purple-400 mt-1">Уровень: 0 / 10</p>
           </div>
-          <button id="upg-cooldown-btn" onclick="buyUpgrade('cooldown')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">100 DP</button>
+          <button id="upg-cooldown-btn" onclick="buyUpgrade('cooldown')" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-sm text-sm transition-all disabled:opacity-40">150 DP</button>
         </div>
-        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+        <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
           <div>
             <h3 data-i18n="upg_click_title" class="font-bold text-purple-100">Сила Клика</h3>
-            <p id="upg-click-desc" class="text-[10px] text-purple-300/80">Очков за клик: +1</p>
-            <p id="upg-click-lvl" class="text-[10px] font-bold text-purple-400 mt-0.5">Уровень: 0 / 20</p>
+            <p id="upg-click-desc" class="text-xs text-purple-300/80">Очков за клик: +1</p>
+            <p id="upg-click-lvl" class="text-xs font-bold text-purple-400 mt-1">Уровень: 0 / 20</p>
           </div>
-          <button id="upg-click-btn" onclick="buyUpgrade('click')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">50 DP</button>
+          <button id="upg-click-btn" onclick="buyUpgrade('click')" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-sm text-sm transition-all disabled:opacity-40">80 DP</button>
         </div>
-        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+        <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
           <div>
             <h3 data-i18n="upg_energy_title" class="font-bold text-purple-100">Максимум Энергии</h3>
-            <p id="upg-energy-desc" class="text-[10px] text-purple-300/80">Макс. энергия: 100</p>
-            <p id="upg-energy-lvl" class="text-[10px] font-bold text-amber-400 mt-0.5">Уровень: 0 / 20</p>
+            <p id="upg-energy-desc" class="text-xs text-purple-300/80">Макс. энергия: 100</p>
+            <p id="upg-energy-lvl" class="text-xs font-bold text-amber-400 mt-1">Уровень: 0 / 20</p>
           </div>
-          <button id="upg-energy-btn" onclick="buyUpgrade('maxEnergy')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">120 DP</button>
+          <button id="upg-energy-btn" onclick="buyUpgrade('maxEnergy')" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-sm text-sm transition-all disabled:opacity-40">180 DP</button>
         </div>
-        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
-          <div>
-            <h3 data-i18n="upg_regen_title" class="font-bold text-purple-100">Скорость энергии</h3>
-            <p id="upg-regen-desc" class="text-[10px] text-purple-300/80">Интервал: 3.0с</p>
-            <p id="upg-regen-lvl" class="text-[10px] font-bold text-amber-400 mt-0.5">Уровень: 0 / 10</p>
-          </div>
-          <button id="upg-regen-btn" onclick="buyUpgrade('regen')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">150 DP</button>
-        </div>
-        <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+        <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
           <div>
             <h3 data-i18n="upg_passive_title" class="font-bold text-purple-100">Пассивный Фокус</h3>
-            <p id="upg-passive-desc" class="text-[10px] text-purple-300/80">+0 DP в сек.</p>
-            <p id="upg-passive-lvl" class="text-[10px] font-bold text-purple-400 mt-0.5">Уровень: 0 / 20</p>
+            <p id="upg-passive-desc" class="text-xs text-purple-300/80">+0 DP в сек.</p>
+            <p id="upg-passive-lvl" class="text-xs font-bold text-purple-400 mt-1">Уровень: 0 / 20</p>
           </div>
-          <button id="upg-passive-btn" onclick="buyUpgrade('passive')" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs disabled:opacity-40">150 DP</button>
+          <button id="upg-passive-btn" onclick="buyUpgrade('passive')" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-sm text-sm transition-all disabled:opacity-40">220 DP</button>
         </div>
       </div>
-      <button onclick="closeModal('upgrades-modal')" data-i18n="btn_close" class="w-full py-2.5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl text-xs border border-purple-700/50">Закрыть</button>
+      <button onclick="closeModal('upgrades-modal')" data-i18n="btn_close" class="w-full py-3 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl shadow-md transition-all mt-2 border border-purple-700/50">Закрыть</button>
     </div>
   </div>
 
   <div id="shop-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
-    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[80vh] modal-anim">
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-6 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col max-h-[85vh] modal-anim">
       <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
-        <h2 data-i18n="shop_title" class="text-xl font-black text-purple-200">Магазин</h2>
-        <button onclick="closeModal('shop-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
+        <h2 data-i18n="shop_title" class="text-2xl font-black text-purple-200">Магазин</h2>
+        <button onclick="closeModal('shop-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-2xl">&times;</button>
       </div>
-      <div class="flex gap-2 my-2.5 p-1 bg-purple-950/60 rounded-xl border border-purple-800/40 text-xs">
-        <button id="shop-tab-boosts" onclick="switchShopTab('boosts')" data-i18n="shop_tab_boosts" class="flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all">Бусты</button>
-        <button id="shop-tab-skins" onclick="switchShopTab('skins')" data-i18n="shop_tab_skins" class="flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all">Скины</button>
-        <button id="shop-tab-roles" onclick="switchShopTab('roles')" data-i18n="shop_tab_roles" class="flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all">Роли</button>
+      <div class="flex gap-2 my-3 p-1 bg-purple-950/60 rounded-xl border border-purple-800/40">
+        <button id="shop-tab-boosts" onclick="switchShopTab('boosts')" data-i18n="shop_tab_boosts" class="flex-1 py-1.5 font-bold text-xs rounded-lg bg-purple-600 text-white shadow-xs transition-all">Бусты</button>
+        <button id="shop-tab-skins" onclick="switchShopTab('skins')" data-i18n="shop_tab_skins" class="flex-1 py-1.5 font-bold text-xs rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all">Скины</button>
       </div>
-      <div class="flex-1 overflow-y-auto py-2 space-y-3 no-scrollbar text-xs">
-        <div id="shop-section-boosts" class="space-y-2.5">
-          <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center">
+      <div class="flex-1 overflow-y-auto py-2 space-y-4 no-scrollbar">
+        <div id="shop-section-boosts" class="space-y-3">
+          <div class="bg-purple-950/40 p-4 rounded-2xl border border-purple-800/50 flex justify-between items-center">
             <div>
               <h3 data-i18n="boost_title" class="font-bold text-purple-100">Ускорение 2x (30с)</h3>
-              <p data-i18n="boost_desc" class="text-[10px] text-purple-300/80">Удваивает клики</p>
+              <p data-i18n="boost_desc" class="text-xs text-purple-300/80">Удваивает клики на 30 секунд</p>
             </div>
-            <button id="boost-buy-btn" onclick="buyBoost()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs">1 000 DP</button>
+            <button id="boost-buy-btn" onclick="buyBoost()" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-sm text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">1 500 DP</button>
           </div>
         </div>
         
-        <div id="shop-section-skins" class="hidden space-y-2.5">
-          <div class="bg-purple-950/40 p-2.5 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-2">
-            <div class="flex items-center gap-2.5">
-              <img src="resurs/eskere.png" alt="Preview" class="w-8 h-8 rounded-lg object-cover border border-purple-500/50">
+        <!-- Скины с предпросмотром -->
+        <div id="shop-section-skins" class="hidden space-y-3">
+          <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+              <img src="resurs/eskere.png" alt="Preview" class="w-10 h-10 rounded-xl object-cover border border-purple-500/50 shadow-sm" onerror="handleImageError(this)">
               <div>
-                <h3 data-i18n="skin_joker" class="font-bold text-purple-100 text-xs">Оригинальный Джокер</h3>
-                <p data-i18n="skin_joker_bonus" class="text-[9px] text-purple-300/80">Без бонуса</p>
+                <h3 data-i18n="skin_joker" class="font-bold text-purple-100 text-sm">Оригинальный Джокер</h3>
+                <p data-i18n="skin_joker_bonus" class="text-[11px] text-purple-300/80">Без бонуса</p>
               </div>
             </div>
-            <button id="skin-btn-eskere" onclick="handleSkinAction('resurs/eskere.png', 0)" class="px-3 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px]">Выбрать</button>
+            <button id="skin-btn-eskere" onclick="handleSkinAction('resurs/eskere.png', 0)" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-sm transition-all whitespace-nowrap">Выбрать</button>
           </div>
 
-          <div class="bg-purple-950/40 p-2.5 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-2">
-            <div class="flex items-center gap-2.5">
-              <img src="resurs/eskerebeszybik.png" alt="Preview" class="w-8 h-8 rounded-lg object-cover border border-purple-500/50">
+          <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+              <img src="resurs/eskerebeszybik.png" alt="Preview" class="w-10 h-10 rounded-xl object-cover border border-purple-500/50 shadow-sm" onerror="handleImageError(this)">
               <div>
-                <h3 data-i18n="skin_toothless" class="font-bold text-purple-100 text-xs">Эскере без зубика</h3>
-                <p data-i18n="skin_toothless_bonus" class="text-[9px] text-amber-400 font-semibold">+25% к клику</p>
+                <h3 data-i18n="skin_toothless" class="font-bold text-purple-100 text-sm">Эскере без зубика</h3>
+                <p data-i18n="skin_toothless_bonus" class="text-[11px] text-amber-400 font-semibold">Бонус: +25% к клику</p>
               </div>
             </div>
-            <button id="skin-btn-bezzybik" onclick="handleSkinAction('resurs/eskerebeszybik.png', 500)" class="px-3 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px]">500 DP</button>
+            <button id="skin-btn-bezzybik" onclick="handleSkinAction('resurs/eskerebeszybik.png', 800)" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-sm transition-all whitespace-nowrap">800 DP</button>
           </div>
 
-          <div class="bg-purple-950/40 p-2.5 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-2">
-            <div class="flex items-center gap-2.5">
-              <img src="resurs/STALIN.png" alt="Preview" class="w-8 h-8 rounded-lg object-cover border border-purple-500/50">
+          <div class="bg-purple-950/40 p-3 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+              <img src="resurs/STALIN.png" alt="Preview" class="w-10 h-10 rounded-xl object-cover border border-purple-500/50 shadow-sm" onerror="handleImageError(this)">
               <div>
-                <h3 data-i18n="skin_stalin" class="font-bold text-purple-100 text-xs">Сталин</h3>
-                <p data-i18n="skin_stalin_bonus" class="text-[9px] text-amber-400 font-semibold">+50% к клику</p>
+                <h3 data-i18n="skin_stalin" class="font-bold text-purple-100 text-sm">Сталин</h3>
+                <p data-i18n="skin_stalin_bonus" class="text-[11px] text-amber-400 font-semibold">Бонус: +50% к клику</p>
               </div>
             </div>
-            <button id="skin-btn-stalin" onclick="handleSkinAction('resurs/STALIN.png', 2000)" class="px-3 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px]">2 000 DP</button>
-          </div>
-        </div>
-
-        <div id="shop-section-roles" class="hidden space-y-2.5">
-          <div class="bg-purple-950/40 p-6 rounded-2xl border border-purple-800/50 text-center">
-            <p data-i18n="roles_not_available" class="text-sm font-bold text-purple-300">Пока недоступно</p>
-            <p class="text-[10px] text-purple-400/70 mt-1">Данная функция появится в следующих обновлениях!</p>
+            <button id="skin-btn-stalin" onclick="handleSkinAction('resurs/STALIN.png', 3500)" class="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-sm transition-all whitespace-nowrap">3 500 DP</button>
           </div>
         </div>
       </div>
-      <button onclick="closeModal('shop-modal')" data-i18n="btn_close" class="w-full py-2.5 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl text-xs border border-purple-700/50">Закрыть</button>
+      <button onclick="closeModal('shop-modal')" data-i18n="btn_close" class="w-full py-3 bg-purple-900/80 hover:bg-purple-800 text-purple-100 font-bold rounded-xl shadow-md transition-all mt-2 border border-purple-700/50">Закрыть</button>
     </div>
   </div>
 
   <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-custom flex items-center justify-center p-4">
-    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-5 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col modal-anim text-xs">
-      <div class="flex justify-between items-center pb-3 border-b border-purple-900/60">
-        <h2 data-i18n="settings_title" class="text-xl font-black text-purple-200">Настройки</h2>
-        <button onclick="closeModal('settings-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-xl">&times;</button>
+    <div class="bg-zinc-950 border border-purple-800/80 rounded-3xl max-w-md w-full p-6 shadow-[0_0_50px_rgba(147,51,234,0.3)] flex flex-col modal-anim">
+      <div class="flex justify-between items-center pb-4 border-b border-purple-900/60">
+        <h2 data-i18n="settings_title" class="text-2xl font-black text-purple-200">Настройки</h2>
+        <button onclick="closeModal('settings-modal')" class="text-purple-400 hover:text-purple-200 font-extrabold text-2xl">&times;</button>
       </div>
-      <div class="py-4 space-y-3.5">
+      <div class="py-6 space-y-5">
         <div class="flex items-center justify-between">
-          <span data-i18n="settings_lang" class="font-bold text-purple-100">Язык / Language</span>
+          <span data-i18n="settings_lang" class="font-bold text-purple-100 text-sm">Язык / Language</span>
           <select id="setting-lang-select" onchange="changeLanguage(this.value)" class="bg-purple-950 border border-purple-700 text-purple-100 text-xs font-bold rounded-xl px-3 py-1.5 focus:outline-none">
             <option value="ru">Русский</option>
             <option value="en">English</option>
           </select>
         </div>
-        <div class="flex items-center justify-between">
-          <span data-i18n="settings_vol" class="font-bold text-purple-100">Громкость звука</span>
-          <span id="volume-val" class="font-bold text-purple-400">50%</span>
-        </div>
-        <input id="volume-range" type="range" min="0" max="100" value="50" oninput="updateVolume(this.value)" class="w-full accent-purple-500 cursor-pointer">
-        <div class="flex items-center justify-between">
-          <span data-i18n="settings_sound" class="font-bold text-purple-100">Звук клика</span>
-          <input id="toggle-click-sound" type="checkbox" checked class="w-4 h-4 accent-purple-500 rounded cursor-pointer">
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <span data-i18n="settings_vol" class="font-bold text-purple-100 text-sm">Громкость звука</span>
+            <span id="volume-val" class="text-xs font-bold text-purple-400">50%</span>
+          </div>
+          <input id="volume-range" type="range" min="0" max="100" value="50" oninput="updateVolume(this.value)" class="w-full accent-purple-500 cursor-pointer">
         </div>
         <div class="flex items-center justify-between">
-          <span data-i18n="settings_anim" class="font-bold text-purple-100">Анимации</span>
-          <input id="toggle-anim" type="checkbox" checked class="w-4 h-4 accent-purple-500 rounded cursor-pointer">
+          <span data-i18n="settings_sound" class="font-bold text-purple-100 text-sm">Звук клика</span>
+          <input id="toggle-click-sound" type="checkbox" checked class="w-5 h-5 accent-purple-500 rounded cursor-pointer">
         </div>
         <div class="flex items-center justify-between">
-          <span data-i18n="settings_simplified" class="font-bold text-purple-100">Упрощенный стиль</span>
-          <input id="toggle-simplified" type="checkbox" onchange="toggleSimplifiedStyle(this.checked)" class="w-4 h-4 accent-purple-500 rounded cursor-pointer">
+          <span data-i18n="settings_anim" class="font-bold text-purple-100 text-sm">Выключить анимации</span>
+          <input id="toggle-anim" type="checkbox" class="w-5 h-5 accent-purple-500 rounded cursor-pointer">
+        </div>
+        <div class="flex items-center justify-between">
+          <span data-i18n="settings_style" class="font-bold text-purple-100 text-sm">Упрощение стиля</span>
+          <input id="toggle-simple" type="checkbox" class="w-5 h-5 accent-purple-500 rounded cursor-pointer">
         </div>
       </div>
-      <div class="flex gap-2.5 pt-1">
-        <button onclick="saveSettings()" data-i18n="btn_save_settings" class="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-md">Сохранить</button>
-        <button onclick="resetProgress()" data-i18n="btn_reset" class="flex-1 py-2.5 bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-700/50 font-bold rounded-xl text-xs">Сбросить</button>
+      <div class="flex gap-3 pt-2">
+        <button onclick="saveSettings()" data-i18n="btn_save_settings" class="flex-1 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer">Сохранить</button>
+        <button onclick="resetProgress()" data-i18n="btn_reset" class="flex-1 py-3 bg-red-900/80 hover:bg-red-800 text-red-200 border border-red-700/50 font-bold rounded-xl shadow-md transition-all cursor-pointer">Сбросить</button>
       </div>
     </div>
   </div>
 
-  <div id="toast" onclick="hideToastImmediately()" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-purple-950 text-purple-100 px-5 py-2.5 rounded-2xl shadow-[0_0_25px_rgba(168,85,247,0.5)] text-xs font-bold border border-purple-600/50 opacity-0 pointer-events-none translate-y-4 cursor-pointer">
-    Сообщение
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-purple-950 text-purple-100 px-6 py-3 rounded-2xl shadow-[0_0_20px_rgba(168,85,247,0.4)] text-sm font-bold border border-purple-600/50 transition-all opacity-0 pointer-events-none translate-y-4">
+    Прогресс успешно сохранен
   </div>
 
   <script>
     const i18n = {
       ru: {
         loader_title: "ДИСЦИПЛИНА КЛИКЕР",
-        loader_status: "Загрузка данных...",
+        loader_status: "Загрузка...",
+        auth_required_desc: "Для доступа к игре требуется авторизация через Discord",
         menu_upgrades: "Прокачка",
+        menu_upgrades_tag: "Улучшения",
         menu_shop: "Магазин",
-        menu_friends: "Друзья",
+        menu_shop_tag: "Скины",
         menu_transfer: "Перевод DP",
+        menu_transfer_tag: "Перевод",
         menu_logs: "Логи",
         menu_settings: "Настройки",
-        label_dp: "очки дисциплины",
+        label_dp: "Очки Дисциплины",
         btn_save: "Сохранить",
         label_auto: "АВТО",
         btn_top: "Топ",
         cooldown_ready: "Готов к клику",
         cooldown_no_energy: "Нет энергии",
         cooldown_recharging: "Перезарядка...",
+        label_energy: "Энергия",
         leaderboard_title: "Таблица Лидеров",
-        friends_title: "Список Друзей",
-        btn_add_friend: "Добавить",
-        select_friend: "Друзья...",
+        guest_status: "Гость",
+        login_discord: "Войти через Discord",
+        auth_logged: "Вход выполнен:",
         upgrades_title: "Прокачка",
-        upg_multiclick_title: "Мульти-клик",
         upg_cooldown_title: "Уменьшение Кулдауна",
         upg_click_title: "Сила Клика",
         upg_energy_title: "Максимум Энергии",
-        upg_regen_title: "Скорость энергии",
         upg_passive_title: "Пассивный Фокус",
         btn_close: "Закрыть",
         shop_title: "Магазин",
         shop_tab_boosts: "Бусты",
         shop_tab_skins: "Скины",
-        shop_tab_roles: "Роли",
-        roles_not_available: "Пока недоступно",
         boost_title: "Ускорение 2x (30с)",
-        boost_desc: "Удваивает клики",
+        boost_desc: "Удваивает клики на 30 секунд",
         skin_joker: "Оригинальный Джокер",
         skin_joker_bonus: "Без бонуса",
         skin_toothless: "Эскере без зубика",
-        skin_toothless_bonus: "+25% к клику",
+        skin_toothless_bonus: "Бонус: +25% к клику",
         skin_stalin: "Сталин",
-        skin_stalin_bonus: "+50% к клику",
+        skin_stalin_bonus: "Бонус: +50% к клику",
         settings_title: "Настройки",
         settings_lang: "Язык / Language",
         settings_vol: "Громкость звука",
         settings_sound: "Звук клика",
-        settings_anim: "Анимации",
-        settings_simplified: "Упрощенный стиль",
+        settings_anim: "Выключить анимации",
+        settings_style: "Упрощение стиля",
         btn_save_settings: "Сохранить",
         btn_reset: "Сбросить",
+        skin_active: "Активно",
+        skin_select: "Выбрать",
+        toast_saved: "Прогресс сохранен!",
+        toast_no_energy: "Недостаточно энергии!",
+        toast_bought: "Куплено!",
+        toast_no_dp: "Недостаточно очков DP!",
+        toast_settings_saved: "Настройки сохранены",
+        level_max: "Уровень: МАКС",
+        level_fmt: "Уровень: ",
+        delay_fmt: "Задержка: ",
+        click_fmt: "Очков за клик: +",
+        max_nrg_fmt: "Макс. энергия: ",
+        pass_fmt: " DP в секунду",
+        ms_fmt: "мс",
+        cd_off: "Кулдаун отключен (0мс)",
         transfer_title: "Перевод Очков",
         transfer_target_label: "Никнейм получателя (без @)",
         transfer_amount_label: "Количество DP",
         btn_send_transfer: "Отправить",
-        freq_title: "Заявка в друзья!",
-        btn_accept: "Принять",
-        btn_decline: "Отклонить",
-        toast_saved: "Прогресс сохранен!"
+        transfer_success: "Очки успешно переведены!",
+        transfer_not_found: "Игрок не найден!",
+        transfer_self_err: "Нельзя переводить очки самому себе!",
+        transfer_invalid: "Укажите правильную сумму и ник!"
       },
       en: {
         loader_title: "DISCIPLINE CLICKER",
-        loader_status: "Loading data...",
+        loader_status: "Loading...",
+        auth_required_desc: "Discord authorization is required to play",
         menu_upgrades: "Upgrades",
+        menu_upgrades_tag: "Powerups",
         menu_shop: "Shop",
-        menu_friends: "Friends",
+        menu_shop_tag: "Skins",
         menu_transfer: "Transfer DP",
+        menu_transfer_tag: "Transfer",
         menu_logs: "Logs",
         menu_settings: "Settings",
-        label_dp: "discipline points",
+        label_dp: "Discipline Points",
         btn_save: "Save",
         label_auto: "AUTO",
         btn_top: "Top",
         cooldown_ready: "Ready to click",
         cooldown_no_energy: "No energy",
         cooldown_recharging: "Recharging...",
+        label_energy: "Energy",
         leaderboard_title: "Leaderboard",
-        friends_title: "Friends List",
-        btn_add_friend: "Add",
-        select_friend: "Friends...",
+        guest_status: "Guest",
+        login_discord: "Login with Discord",
+        auth_logged: "Logged in:",
         upgrades_title: "Upgrades",
-        upg_multiclick_title: "Multi-Click",
         upg_cooldown_title: "Cooldown Reduction",
         upg_click_title: "Click Power",
         upg_energy_title: "Max Energy",
-        upg_regen_title: "Energy Speed",
         upg_passive_title: "Passive Focus",
         btn_close: "Close",
         shop_title: "Shop",
         shop_tab_boosts: "Boosts",
         shop_tab_skins: "Skins",
-        shop_tab_roles: "Roles",
-        roles_not_available: "Not available yet",
         boost_title: "2x Boost (30s)",
-        boost_desc: "Doubles clicks",
+        boost_desc: "Doubles clicks for 30 seconds",
         skin_joker: "Original Joker",
         skin_joker_bonus: "No bonus",
-        skin_toothless: "Toothless Eskere",
-        skin_toothless_bonus: "+25% click",
+        skin_toothless: "Eskere Toothless",
+        skin_toothless_bonus: "Bonus: +25% click",
         skin_stalin: "Stalin",
-        skin_stalin_bonus: "+50% click",
+        skin_stalin_bonus: "Bonus: +50% click",
         settings_title: "Settings",
         settings_lang: "Language / Язык",
         settings_vol: "Sound Volume",
         settings_sound: "Click Sound",
-        settings_anim: "Animations",
-        settings_simplified: "Simplified Style",
+        settings_anim: "Disable Animations",
+        settings_style: "Simplify Style",
         btn_save_settings: "Save",
         btn_reset: "Reset",
+        skin_active: "Active",
+        skin_select: "Select",
+        toast_saved: "Progress saved!",
+        toast_no_energy: "Not enough energy!",
+        toast_bought: "Purchased!",
+        toast_no_dp: "Not enough DP!",
+        toast_settings_saved: "Settings saved",
+        level_max: "Level: MAX",
+        level_fmt: "Level: ",
+        delay_fmt: "Delay: ",
+        click_fmt: "Points per click: +",
+        max_nrg_fmt: "Max energy: ",
+        pass_fmt: " DP per sec",
+        ms_fmt: "ms",
+        cd_off: "Cooldown off (0ms)",
         transfer_title: "Transfer Points",
         transfer_target_label: "Recipient Username (without @)",
         transfer_amount_label: "DP Amount",
-        btn_send_transfer: "Send",
-        freq_title: "Friend Request!",
-        btn_accept: "Accept",
-        btn_decline: "Decline",
-        toast_saved: "Progress saved!"
+        btn_send_transfer: "Send Points",
+        transfer_success: "Points transferred successfully!",
+        transfer_not_found: "Player not found!",
+        transfer_self_err: "You cannot transfer points to yourself!",
+        transfer_invalid: "Enter valid amount and username!"
       }
     };
 
@@ -648,34 +639,26 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_HESWLOlm3NOqvGipVGtnWA_4ITJx2tR';
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    let testPlayerName = localStorage.getItem('test_player_name');
-    if (!testPlayerName) {
-      testPlayerName = 'Tester_' + Math.floor(1000 + Math.random() * 9000);
-      localStorage.setItem('test_player_name', testPlayerName);
-    }
+    const DISCORD_CLIENT_ID = '1559503506497347614'; 
+    let discordUser = null;
 
     let state = {
       score: 0,
       clickPower: 1,
-      multiClickLvl: 0,
       cooldownLvl: 0,
       cooldownMs: 200,
       passiveLvl: 0,
       energyLvl: 0,
-      regenLvl: 0,
-      regenIntervalMs: 3000,
       currentEnergy: 100,
       maxEnergy: 100,
       dps: 0,
       boostMultiplier: 1,
       volume: 0.5,
       clickSoundEnabled: true,
-      enableAnimations: true,
+      disableAnimations: false,
       simplifiedStyle: false,
       currentSkin: 'resurs/eskere.png',
       unlockedSkins: ['resurs/eskere.png'],
-      friends: [],
-      friendRequests: [],
       lastOnlineTime: Date.now(),
       lang: 'ru',
       logs: []
@@ -691,46 +674,10 @@
     let boostTimerInterval = null;
     let transferCooldown = 0;
     let transferTimerInterval = null;
-    let energyRegenTimer = null;
-    let toastTimeout = null;
-    let currentIncomingRequestSender = null;
-    let pendingOfflineEarned = 0;
 
     function t(key) {
       const l = state.lang || 'ru';
       return (i18n[l] && i18n[l][key]) ? i18n[l][key] : key;
-    }
-
-    function applyTranslations() {
-      document.querySelectorAll('[data-i18n]').forEach(el => {
-        const k = el.getAttribute('data-i18n');
-        el.innerText = t(k);
-      });
-      const langSel = document.getElementById('setting-lang-select');
-      if (langSel) langSel.value = state.lang;
-    }
-
-    function changeLanguage(newLang) {
-      state.lang = newLang;
-      applyTranslations();
-      updateUI();
-    }
-
-    function copyMyUsername() {
-      navigator.clipboard.writeText(getPlayerName()).then(() => {
-        showToast('Ник скопирован!');
-      }).catch(() => {
-        showToast(`Ваш ник: ${getPlayerName()}`);
-      });
-    }
-
-    function toggleSimplifiedStyle(enabled) {
-      state.simplifiedStyle = enabled;
-      if (enabled) {
-        document.body.classList.add('simplified-style');
-      } else {
-        document.body.classList.remove('simplified-style');
-      }
     }
 
     function addLog(text) {
@@ -744,7 +691,7 @@
       const listEl = document.getElementById('logs-list');
       if (!listEl) return;
       if (!state.logs || state.logs.length === 0) {
-        listEl.innerHTML = '<div class="text-center text-purple-400 py-3">Нет записей</div>';
+        listEl.innerHTML = '<div class="text-center text-purple-400 py-4">Нет записей в логах</div>';
         return;
       }
       let html = '';
@@ -754,6 +701,22 @@
       listEl.innerHTML = html;
     }
 
+    function applyTranslations() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        el.innerText = t(k);
+      });
+      const langSel = document.getElementById('setting-lang-select');
+      if (langSel) langSel.value = state.lang;
+      updateAuthUI();
+    }
+
+    function changeLanguage(newLang) {
+      state.lang = newLang;
+      applyTranslations();
+      updateUI();
+    }
+
     function getSkinMultiplier(path) {
       if (path === 'resurs/eskerebeszybik.png') return 1.25;
       if (path === 'resurs/STALIN.png') return 1.50;
@@ -761,270 +724,108 @@
     }
 
     window.addEventListener('load', async () => {
-      createParticles();
-      document.getElementById('user-nickname').innerText = `@${testPlayerName}`;
-      const myNickEl = document.getElementById('my-copy-nick-text');
-      if (myNickEl) myNickEl.innerText = `@${testPlayerName}`;
+      const isAuthenticated = await checkDiscordAuth();
 
-      let isLoaded = false;
-      const hideLoader = () => {
-        if (isLoaded) return;
-        isLoaded = true;
-        const loader = document.getElementById('loader-screen');
-        if (loader) {
-          loader.classList.add('opacity-0');
-          setTimeout(() => {
-            loader.classList.add('hidden');
-            startAutoSaveTimer();
-            startPassiveIncome();
-            checkOfflineIncome();
-          }, 400);
-        }
-      };
+      if (!isAuthenticated) {
+        document.getElementById('loader-progress-box').classList.add('hidden');
+        document.getElementById('loader-auth-box').classList.remove('hidden');
+        return;
+      }
 
-      const safetyTimeout = setTimeout(hideLoader, 1500);
+      await loadFromCloud();
 
-      try {
-        await loadFromCloud();
-      } catch (e) {}
-
-      clearTimeout(safetyTimeout);
-
+      // Оффлайн-энергия
       const now = Date.now();
       if (state.lastOnlineTime) {
         const secondsPassed = Math.floor((now - state.lastOnlineTime) / 1000);
         if (secondsPassed > 0 && state.currentEnergy < state.maxEnergy) {
-          const recovered = Math.floor((secondsPassed * 1000) / state.regenIntervalMs);
+          const recovered = Math.floor(secondsPassed / 2);
           state.currentEnergy = Math.min(state.maxEnergy, state.currentEnergy + recovered);
-        }
-
-        const dps = (state.passiveLvl || 0) * 2;
-        if (secondsPassed > 5 && dps > 0) {
-          const maxOfflineSeconds = 86400;
-          const actualSeconds = Math.min(secondsPassed, maxOfflineSeconds);
-          pendingOfflineEarned = actualSeconds * dps;
         }
       }
 
-      toggleSimplifiedStyle(state.simplifiedStyle);
       applyTranslations();
       updateUI();
       applySettings();
-      startEnergyRegenLoop();
+      startEnergyRegen();
       fetchLeaderboard();
       initRealtimeSync();
-      updateFriendsUI();
 
-      hideLoader();
+      // Скрываем экран загрузки
+      const loader = document.getElementById('loader-screen');
+      if (loader) {
+        loader.classList.add('opacity-0');
+        setTimeout(() => {
+          loader.classList.add('hidden');
+          startAutoSaveTimer();
+          startPassiveIncome();
+        }, 400);
+      }
 
-      setInterval(fetchLeaderboard, 10000);
+      setInterval(fetchLeaderboard, 15000);
     });
 
-    function checkOfflineIncome() {
-      if (pendingOfflineEarned > 0) {
-        const earnedEl = document.getElementById('offline-earned-amount');
-        if (earnedEl) earnedEl.innerText = `+${Math.floor(pendingOfflineEarned).toLocaleString('ru-RU')} DP`;
-        document.getElementById('offline-income-modal').classList.remove('hidden');
+    async function checkDiscordAuth() {
+      const fragment = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = fragment.get('access_token');
+
+      if (accessToken) {
+        localStorage.setItem('discord_access_token', accessToken);
+        window.location.hash = '';
+      }
+
+      const token = localStorage.getItem('discord_access_token');
+      if (!token) return false;
+
+      try {
+        const res = await fetch('https://discord.com/api/users/@me', {
+          headers: { authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error();
+        discordUser = await res.json();
+        updateAuthUI();
+        return true;
+      } catch (e) {
+        localStorage.removeItem('discord_access_token');
+        return false;
       }
     }
 
-    function claimOfflineIncome() {
-      if (pendingOfflineEarned > 0) {
-        state.score += pendingOfflineEarned;
-        addLog(`Получен офлайн-доход: +${Math.floor(pendingOfflineEarned)} DP`);
-        pendingOfflineEarned = 0;
-        updateUI();
-        saveToCloud();
-      }
-      document.getElementById('offline-income-modal').classList.add('hidden');
+    function loginWithDiscord() {
+      const redirectUri = window.location.origin + window.location.pathname;
+      const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=identify`;
+      window.location.href = authUrl;
     }
 
-    function createParticles() {
-      const container = document.getElementById('particles-container');
-      if (!container) return;
-      container.innerHTML = '';
-      for (let i = 0; i < 15; i++) {
-        const p = document.createElement('div');
-        p.className = 'particle';
-        const size = 4 + Math.random() * 6;
-        p.style.width = `${size}px`;
-        p.style.height = `${size}px`;
-        p.style.left = `${Math.random() * 100}%`;
-        p.style.animationDuration = `${6 + Math.random() * 6}s`;
-        p.style.animationDelay = `${Math.random() * 5}s`;
-        container.appendChild(p);
+    function updateAuthUI() {
+      const statusBox = document.getElementById('auth-status-box');
+      const nicknameEl = document.getElementById('user-nickname');
+      const avatarEl = document.getElementById('user-avatar');
+
+      if (discordUser) {
+        const name = discordUser.global_name || discordUser.username;
+        if (nicknameEl) nicknameEl.innerText = `@${name}`;
+        if (avatarEl && discordUser.avatar) {
+          avatarEl.src = `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`;
+        }
+
+        if (statusBox) {
+          statusBox.innerHTML = `
+            <span class="text-[11px] font-bold text-emerald-400 block mb-0.5">${t('auth_logged')}</span>
+            <span class="text-xs font-black text-white truncate block">@${name}</span>
+          `;
+        }
       }
     }
 
     function getPlayerId() {
-      return `test_${testPlayerName}`;
+      if (discordUser) return `dc_${discordUser.id}`;
+      return null;
     }
 
     function getPlayerName() {
-      return testPlayerName;
-    }
-
-    async function sendFriendRequest() {
-      const input = document.getElementById('friend-username-input');
-      const friendName = input ? input.value.trim().replace(/^@/, '') : '';
-      if (!friendName) return;
-
-      if (friendName.toLowerCase() === getPlayerName().toLowerCase()) {
-        showToast('Нельзя добавить себя в друзья!');
-        return;
-      }
-
-      if (state.friends.includes(friendName)) {
-        showToast('Этот игрок уже у вас в друзьях!');
-        return;
-      }
-
-      const { data, error } = await supabaseClient
-        .from('players')
-        .select('*')
-        .ilike('username', friendName);
-
-      if (error || !data || data.length === 0) {
-        showToast('Игрок не найден!');
-        return;
-      }
-
-      const targetPlayer = data[0];
-      let targetState = {};
-      try {
-        if (targetPlayer.data) targetState = JSON.parse(targetPlayer.data);
-      } catch (e) {}
-
-      if (!targetState.friendRequests) targetState.friendRequests = [];
-      if (!targetState.friendRequests.includes(getPlayerName())) {
-        targetState.friendRequests.push(getPlayerName());
-      }
-
-      targetPlayer.data = JSON.stringify(targetState);
-      await supabaseClient.from('players').upsert(targetPlayer);
-
-      input.value = '';
-      showToast('Заявка отправлена!');
-    }
-
-    function processIncomingRequests() {
-      if (state.friendRequests && state.friendRequests.length > 0) {
-        currentIncomingRequestSender = state.friendRequests[0];
-        document.getElementById('friend-request-sender').innerText = `Игрок @${currentIncomingRequestSender} хочет добавить вас в друзья!`;
-        document.getElementById('friend-request-modal').classList.remove('hidden');
-      }
-    }
-
-    async function acceptFriendRequest() {
-      if (!currentIncomingRequestSender) return;
-      const sender = currentIncomingRequestSender;
-
-      if (!state.friends.includes(sender)) {
-        state.friends.push(sender);
-      }
-      state.friendRequests = state.friendRequests.filter(r => r !== sender);
-
-      const { data } = await supabaseClient.from('players').select('*').ilike('username', sender);
-      if (data && data.length > 0) {
-        const senderPlayer = data[0];
-        let senderState = {};
-        try { if (senderPlayer.data) senderState = JSON.parse(senderPlayer.data); } catch(e){}
-        if (!senderState.friends) senderState.friends = [];
-        if (!senderState.friends.includes(getPlayerName())) {
-          senderState.friends.push(getPlayerName());
-        }
-        senderPlayer.data = JSON.stringify(senderState);
-        await supabaseClient.from('players').upsert(senderPlayer);
-      }
-
-      document.getElementById('friend-request-modal').classList.add('hidden');
-      currentIncomingRequestSender = null;
-      updateFriendsUI();
-      saveToCloud();
-      showToast('Заявка принята!');
-      
-      setTimeout(processIncomingRequests, 500);
-    }
-
-    function declineFriendRequest() {
-      if (!currentIncomingRequestSender) return;
-      state.friendRequests = state.friendRequests.filter(r => r !== currentIncomingRequestSender);
-      document.getElementById('friend-request-modal').classList.add('hidden');
-      currentIncomingRequestSender = null;
-      saveToCloud();
-      
-      setTimeout(processIncomingRequests, 500);
-    }
-
-    function removeFriend(friendName) {
-      state.friends = state.friends.filter(f => f !== friendName);
-      updateFriendsUI();
-      saveToCloud();
-      showToast('Друг удален');
-    }
-
-    async function updateFriendsUI() {
-      const listEl = document.getElementById('friends-list');
-      const selectEl = document.getElementById('transfer-friends-select');
-      if (!listEl || !selectEl) return;
-
-      if (!state.friends || state.friends.length === 0) {
-        listEl.innerHTML = '<div class="text-center text-purple-400 py-4">У вас пока нет друзей</div>';
-        selectEl.innerHTML = `<option value="">${t('select_friend')}</option>`;
-        return;
-      }
-
-      let selectHtml = `<option value="">${t('select_friend')}</option>`;
-      state.friends.forEach(f => {
-        selectHtml += `<option value="${f}">@${f}</option>`;
-      });
-      selectEl.innerHTML = selectHtml;
-
-      const { data } = await supabaseClient
-        .from('players')
-        .select('username, data')
-        .in('username', state.friends);
-
-      const avatarMap = {};
-      if (data) {
-        data.forEach(p => {
-          try {
-            const parsed = JSON.parse(p.data);
-            if (parsed && parsed.currentSkin) avatarMap[p.username] = parsed.currentSkin;
-          } catch(e) {}
-        });
-      }
-
-      let listHtml = '';
-      state.friends.forEach(f => {
-        const friendAvatar = avatarMap[f] || 'resurs/eskere.png';
-        listHtml += `
-          <div class="bg-purple-950/40 border border-purple-800/40 p-2 rounded-xl flex justify-between items-center text-purple-200">
-            <div class="flex items-center gap-2">
-              <img src="${friendAvatar}" alt="Avatar" class="w-7 h-7 rounded-lg object-cover border border-purple-500/50" onerror="handleImageError(this)">
-              <span class="font-bold">@${f}</span>
-            </div>
-            <div class="flex gap-1.5">
-              <button onclick="transferToFriend('${f}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px]">Перевод</button>
-              <button onclick="removeFriend('${f}')" class="px-2 py-1 bg-red-900/60 hover:bg-red-800 text-red-200 font-bold rounded-lg text-[10px]">Удалить</button>
-            </div>
-          </div>
-        `;
-      });
-
-      listEl.innerHTML = listHtml;
-    }
-
-    function selectFriendForTransfer(friendName) {
-      if (!friendName) return;
-      const targetInput = document.getElementById('transfer-target-input');
-      if (targetInput) targetInput.value = friendName;
-    }
-
-    function transferToFriend(friendName) {
-      openModal('transfer-modal');
-      const targetInput = document.getElementById('transfer-target-input');
-      if (targetInput) targetInput.value = friendName;
+      if (discordUser) return discordUser.global_name || discordUser.username;
+      return 'Player';
     }
 
     function initRealtimeSync() {
@@ -1038,90 +839,16 @@
               if (remoteData.score > state.score) {
                 state.score = remoteData.score;
               }
-              if (remoteData.friendRequests && remoteData.friendRequests.length > (state.friendRequests ? state.friendRequests.length : 0)) {
-                state.friendRequests = remoteData.friendRequests;
-                processIncomingRequests();
-              }
-              if (remoteData.friends) {
-                state.friends = remoteData.friends;
-                updateFriendsUI();
-              }
               if (remoteData.logs && remoteData.logs.length > state.logs.length) {
-                const latestLog = remoteData.logs[0];
                 state.logs = remoteData.logs;
                 updateLogsUI();
-                
-                if (latestLog && latestLog.includes('перевел вам')) {
-                  playTransferSound();
-                  showGreenToast(latestLog);
-                }
+                showToast("Получено обновление / перевод очков!");
               }
               updateUI();
             } catch (e) {}
           }
         })
         .subscribe();
-    }
-
-    function playTransferSound() {
-      if (state.volume <= 0) return;
-      try {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        audio.volume = state.volume;
-        audio.play().catch(() => {});
-      } catch (e) {}
-    }
-
-    function hideToastImmediately() {
-      if (toastTimeout) {
-        clearTimeout(toastTimeout);
-        toastTimeout = null;
-      }
-      const toast = document.getElementById('toast');
-      if (!toast) return;
-      toast.style.opacity = '0';
-      toast.style.transform = 'translate(-50%, 16px)';
-      toast.style.pointerEvents = 'none';
-    }
-
-    function showGreenToast(msg) {
-      hideToastImmediately();
-
-      const toast = document.getElementById('toast');
-      if (!toast) return;
-
-      toast.innerText = msg;
-      toast.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-emerald-950 text-emerald-100 px-5 py-3 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.6)] text-xs font-extrabold border border-emerald-500/60 cursor-pointer';
-      
-      requestAnimationFrame(() => {
-        toast.style.opacity = '1';
-        toast.style.transform = 'translate(-50%, 0px)';
-        toast.style.pointerEvents = 'auto';
-      });
-
-      toastTimeout = setTimeout(() => {
-        hideToastImmediately();
-      }, 2500);
-    }
-
-    function showToast(msg) {
-      hideToastImmediately();
-
-      const toast = document.getElementById('toast');
-      if (!toast) return;
-
-      toast.innerText = msg;
-      toast.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-purple-950 text-purple-100 px-5 py-2.5 rounded-2xl shadow-[0_0_25px_rgba(168,85,247,0.5)] text-xs font-bold border border-purple-600/50 cursor-pointer';
-      
-      requestAnimationFrame(() => {
-        toast.style.opacity = '1';
-        toast.style.transform = 'translate(-50%, 0px)';
-        toast.style.pointerEvents = 'auto';
-      });
-
-      toastTimeout = setTimeout(() => {
-        hideToastImmediately();
-      }, 2500);
     }
 
     async function executeTransfer() {
@@ -1135,27 +862,28 @@
       let amount = amountInput ? parseInt(amountInput.value) : 0;
 
       if (!targetName || isNaN(amount) || amount <= 0) {
-        showToast('Укажите правильную сумму и ник!');
+        showToast(t('transfer_invalid'));
         return;
       }
 
       if (targetName.toLowerCase() === getPlayerName().toLowerCase()) {
-        showToast('Нельзя переводить очки самому себе!');
+        showToast(t('transfer_self_err'));
         return;
       }
 
       if (state.score < amount) {
-        showToast('Недостаточно очков DP!');
+        showToast(t('toast_no_dp'));
         return;
       }
 
+      // Ищем игрока в базе
       const { data, error } = await supabaseClient
         .from('players')
         .select('*')
         .ilike('username', targetName);
 
       if (error || !data || data.length === 0) {
-        showToast('Игрок не найден!');
+        showToast(t('transfer_not_found'));
         return;
       }
 
@@ -1165,6 +893,7 @@
         if (targetPlayer.data) targetState = JSON.parse(targetPlayer.data);
       } catch (e) {}
 
+      // Списываем у нас и добавляем получателю
       state.score -= amount;
       addLog(`Вы перевели ${amount} DP игроку @${targetPlayer.username}`);
 
@@ -1180,16 +909,17 @@
       await supabaseClient.from('players').upsert(targetPlayer);
       await saveToCloud();
 
-      showToast('Очки успешно переведены!');
+      showToast(t('transfer_success'));
       closeModal('transfer-modal');
 
       if (targetInput) targetInput.value = '';
       if (amountInput) amountInput.value = '';
 
+      // Кулдаун на переводы для предотвращения спама
       transferCooldown = 15;
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerText = `Отправить (${transferCooldown}s)`;
+        submitBtn.innerText = `${t('btn_send_transfer')} (${transferCooldown}s)`;
       }
 
       if (transferTimerInterval) clearInterval(transferTimerInterval);
@@ -1199,10 +929,10 @@
           clearInterval(transferTimerInterval);
           if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerText = 'Отправить';
+            submitBtn.innerText = t('btn_send_transfer');
           }
         } else {
-          if (submitBtn) submitBtn.innerText = `Отправить (${transferCooldown}s)`;
+          if (submitBtn) submitBtn.innerText = `${t('btn_send_transfer')} (${transferCooldown}s)`;
         }
       }, 1000);
     }
@@ -1221,7 +951,9 @@
       };
 
       const { error } = await supabaseClient.from('players').upsert(playerPayload);
-      if (!error) {
+      if (error) {
+        console.error('Ошибка сохранения в облако:', error);
+      } else {
         showToast(t('toast_saved'));
         fetchLeaderboard();
       }
@@ -1231,20 +963,21 @@
       const playerId = getPlayerId();
       if (!playerId) return;
 
-      try {
-        const fetchPromise = supabaseClient.from('players').select('*').eq('id', playerId);
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500));
-        
-        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
-        if (error) return;
+      const { data, error } = await supabaseClient.from('players').select('*').eq('id', playerId);
+      if (error) {
+        console.log('Ошибка запроса к облаку:', error);
+        return;
+      }
 
-        if (data && data.length > 0 && data[0].data) {
+      if (data && data.length > 0 && data[0].data) {
+        try {
           const savedState = JSON.parse(data[0].data);
           state = { ...state, ...savedState };
           updateLogsUI();
-          processIncomingRequests();
+        } catch (e) {
+          console.error('Ошибка чтения данных:', e);
         }
-      } catch (e) {}
+      }
     }
 
     async function fetchLeaderboard() {
@@ -1273,8 +1006,8 @@
                           index === 2 ? 'border-amber-700/60 bg-amber-700/10 text-amber-600' : 'border-purple-800/40 bg-purple-950/40 text-purple-200';
         
         html += `
-          <div class="flex justify-between items-center px-2 py-1.5 rounded-xl border ${rankColor} ${isCurrent ? 'ring-2 ring-purple-400' : ''} gap-2">
-            <span class="font-bold truncate text-left max-w-[110px]">#${index + 1} ${player.username}</span>
+          <div class="flex justify-between items-center px-2.5 py-1.5 rounded-xl border ${rankColor} ${isCurrent ? 'ring-2 ring-purple-400' : ''} gap-2 overflow-hidden">
+            <span class="font-bold truncate text-left max-w-[130px]">#${index + 1} ${player.username}</span>
             <span class="font-black text-white whitespace-nowrap">${Math.floor(player.score).toLocaleString('ru-RU')} DP</span>
           </div>
         `;
@@ -1286,45 +1019,42 @@
       const now = Date.now();
       if (now - lastClickTime < state.cooldownMs) return;
 
-      const multiClicksCount = 1 + (state.multiClickLvl || 0);
-
-      if (state.currentEnergy < multiClicksCount) {
-        showToast('Недостаточно энергии!');
+      if (state.currentEnergy <= 0) {
+        showToast(t('toast_no_energy'));
         return;
       }
 
       lastClickTime = now;
-      state.currentEnergy -= multiClicksCount;
+      state.currentEnergy--;
 
       const skinMult = getSkinMultiplier(state.currentSkin);
-      const gainedPerSingleClick = Math.round(state.clickPower * state.boostMultiplier * skinMult);
-      const totalGained = gainedPerSingleClick * multiClicksCount;
-      state.score += totalGained;
+      const gained = Math.round(state.clickPower * state.boostMultiplier * skinMult);
+      state.score += gained;
 
       playClickSounds();
       updateUI();
       triggerScoreAnimation();
       triggerCooldownAnimation();
 
-      if (state.enableAnimations && e.clientX) {
-        spawnFloatingText(e, `+${totalGained}`);
+      if (!state.disableAnimations) {
+        spawnFloatingText(e, `+${gained}`);
         spawnLocalMilkSplash(e);
       }
     }
 
     function triggerScoreAnimation() {
-      if (!state.enableAnimations) return;
+      if (state.disableAnimations) return;
       const scoreEl = document.getElementById('score-display');
       scoreEl.classList.remove('animate-score');
       void scoreEl.offsetWidth;
       scoreEl.classList.add('animate-score');
     }
 
-    function startEnergyRegenLoop() {
-      if (energyRegenTimer) clearInterval(energyRegenTimer);
-      energyRegenTimer = setInterval(() => {
+    function startEnergyRegen() {
+      setInterval(() => {
         if (state.currentEnergy < state.maxEnergy) {
           state.currentEnergy++;
+          // Исправлен баг: если энергия больше 0, сразу снимаем блокировку отсутствия энергии
           if (state.currentEnergy > 0) {
             const btn = document.getElementById('clicker-btn');
             const text = document.getElementById('cooldown-text');
@@ -1335,7 +1065,7 @@
           }
           updateUI();
         }
-      }, state.regenIntervalMs);
+      }, 3000);
     }
 
     function triggerCooldownAnimation() {
@@ -1343,8 +1073,7 @@
       const bar = document.getElementById('cooldown-bar');
       const text = document.getElementById('cooldown-text');
 
-      const multiClicksCount = 1 + (state.multiClickLvl || 0);
-      if (state.currentEnergy < multiClicksCount) {
+      if (state.currentEnergy <= 0) {
         btn.classList.add('pointer-events-none', 'opacity-50', 'cursor-not-allowed');
         text.innerText = t('cooldown_no_energy');
         return;
@@ -1373,9 +1102,7 @@
         if (elapsed < state.cooldownMs) {
           cooldownProgressAnim = requestAnimationFrame(step);
         } else {
-          bar.style.width = '100%';
-          const multiClicksCount = 1 + (state.multiClickLvl || 0);
-          if (state.currentEnergy >= multiClicksCount) {
+          if (state.currentEnergy > 0) {
             btn.classList.remove('pointer-events-none', 'opacity-80', 'cursor-not-allowed', 'opacity-50');
             text.innerText = t('cooldown_ready');
           }
@@ -1385,9 +1112,9 @@
     }
 
     function spawnFloatingText(e, text) {
-      if (!state.enableAnimations) return;
+      if (state.disableAnimations) return;
       const el = document.createElement('div');
-      el.className = 'floating-text text-lg sm:text-xl';
+      el.className = 'floating-text text-xl sm:text-2xl';
       el.innerText = text;
       el.style.left = `${e.clientX}px`;
       el.style.top = `${e.clientY}px`;
@@ -1396,20 +1123,57 @@
     }
 
     function spawnLocalMilkSplash(e) {
-      if (!state.enableAnimations) return;
+      if (state.disableAnimations) return;
       const clickX = e.clientX;
       const clickY = e.clientY;
 
+      const ripple = document.createElement('div');
+      ripple.className = 'milk-ripple';
+      ripple.style.width = '40px'; 
+      ripple.style.height = '40px';
+      ripple.style.left = `${clickX - 20}px`; 
+      ripple.style.top = `${clickY - 20}px`;
+      document.body.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 450);
+
       const blob = document.createElement('div');
       blob.className = 'milk-blob';
-      const size = 24 + Math.random() * 12;
+      const size = 32 + Math.random() * 16;
       blob.style.width = `${size}px`;
       blob.style.height = `${size}px`;
       blob.style.left = `${clickX - size / 2}px`;
       blob.style.top = `${clickY - size / 2}px`;
 
+      const r1 = 30 + Math.random() * 40;
+      const r2 = 30 + Math.random() * 40;
+      const r3 = 30 + Math.random() * 40;
+      const r4 = 30 + Math.random() * 40;
+      blob.style.borderRadius = `${r1}% ${100 - r1}% ${r2}% ${100 - r2}% / ${r3}% ${r4}% ${100 - r4}% ${100 - r3}%`;
+
       document.body.appendChild(blob);
       setTimeout(() => blob.remove(), 600);
+
+      const dropletCount = 5 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < dropletCount; i++) {
+        const droplet = document.createElement('div');
+        droplet.className = 'milk-droplet';
+        const dSize = 4 + Math.random() * 5;
+        droplet.style.width = `${dSize}px`;
+        droplet.style.height = `${dSize}px`;
+        droplet.style.left = `${clickX - dSize / 2}px`;
+        droplet.style.top = `${clickY - dSize / 2}px`;
+
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 25 + Math.random() * 40;
+        const dx = Math.cos(angle) * dist;
+        const dy = Math.sin(angle) * dist + 10;
+
+        droplet.style.setProperty('--dx', `${dx}px`);
+        droplet.style.setProperty('--dy', `${dy}px`);
+
+        document.body.appendChild(droplet);
+        setTimeout(() => droplet.remove(), 550);
+      }
     }
 
     function toggleLeaderboard() {
@@ -1432,29 +1196,19 @@
     function switchShopTab(tab) {
       const boostsSec = document.getElementById('shop-section-boosts');
       const skinsSec = document.getElementById('shop-section-skins');
-      const rolesSec = document.getElementById('shop-section-roles');
-      
       const boostsTab = document.getElementById('shop-tab-boosts');
       const skinsTab = document.getElementById('shop-tab-skins');
-      const rolesTab = document.getElementById('shop-tab-roles');
-
-      boostsSec.classList.add('hidden');
-      skinsSec.classList.add('hidden');
-      rolesSec.classList.add('hidden');
-
-      boostsTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
-      skinsTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
-      rolesTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
 
       if (tab === 'boosts') {
         boostsSec.classList.remove('hidden');
-        boostsTab.className = 'flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all';
-      } else if (tab === 'skins') {
+        skinsSec.classList.add('hidden');
+        boostsTab.className = 'flex-1 py-1.5 font-bold text-xs rounded-lg bg-purple-600 text-white shadow-xs transition-all';
+        skinsTab.className = 'flex-1 py-1.5 font-bold text-xs rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
+      } else {
+        boostsSec.classList.add('hidden');
         skinsSec.classList.remove('hidden');
-        skinsTab.className = 'flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all';
-      } else if (tab === 'roles') {
-        rolesSec.classList.remove('hidden');
-        rolesTab.className = 'flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all';
+        skinsTab.className = 'flex-1 py-1.5 font-bold text-xs rounded-lg bg-purple-600 text-white shadow-xs transition-all';
+        boostsTab.className = 'flex-1 py-1.5 font-bold text-xs rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
       }
     }
 
@@ -1466,9 +1220,9 @@
         state.unlockedSkins.push(path);
         selectSkin(path);
         addLog(`Куплен скин за ${price} DP`);
-        showToast('Куплено!');
+        showToast(t('toast_bought'));
       } else {
-        showToast('Недостаточно очков DP!');
+        showToast(t('toast_no_dp'));
       }
     }
 
@@ -1483,18 +1237,18 @@
     function updateSkinsUI() {
       const skins = [
         { id: 'skin-btn-eskere', path: 'resurs/eskere.png', price: 0 },
-        { id: 'skin-btn-bezzybik', path: 'resurs/eskerebeszybik.png', price: 500 },
-        { id: 'skin-btn-stalin', path: 'resurs/STALIN.png', price: 2000 }
+        { id: 'skin-btn-bezzybik', path: 'resurs/eskerebeszybik.png', price: 800 },
+        { id: 'skin-btn-stalin', path: 'resurs/STALIN.png', price: 3500 }
       ];
 
       skins.forEach(s => {
         const btn = document.getElementById(s.id);
         if (!btn) return;
         if (state.currentSkin === s.path) {
-          btn.innerText = 'Активно';
+          btn.innerText = t('skin_active');
           btn.disabled = true;
         } else if (state.unlockedSkins.includes(s.path)) {
-          btn.innerText = 'Выбрать';
+          btn.innerText = t('skin_select');
           btn.disabled = false;
         } else {
           btn.innerText = `${s.price} DP`;
@@ -1504,12 +1258,10 @@
     }
 
     function getUpgradeCost(type) {
-      if (type === 'multiClick') return state.multiClickLvl >= 10 ? Infinity : Math.floor(200 * Math.pow(1.4, state.multiClickLvl));
-      if (type === 'cooldown') return state.cooldownLvl >= 10 ? Infinity : Math.floor(100 * Math.pow(1.35, state.cooldownLvl));
-      if (type === 'click') return state.clickPower >= 20 ? Infinity : Math.floor(50 * Math.pow(1.25, state.clickPower - 1));
-      if (type === 'maxEnergy') return state.energyLvl >= 20 ? Infinity : Math.floor(120 * Math.pow(1.25, state.energyLvl));
-      if (type === 'regen') return state.regenLvl >= 10 ? Infinity : Math.floor(150 * Math.pow(1.4, state.regenLvl));
-      if (type === 'passive') return state.passiveLvl >= 20 ? Infinity : Math.floor(150 * Math.pow(1.25, state.passiveLvl));
+      if (type === 'cooldown') return state.cooldownLvl >= 10 ? Infinity : Math.floor(150 * Math.pow(1.4, state.cooldownLvl));
+      if (type === 'click') return state.clickPower >= 20 ? Infinity : Math.floor(80 * Math.pow(1.3, state.clickPower - 1));
+      if (type === 'maxEnergy') return state.energyLvl >= 20 ? Infinity : Math.floor(180 * Math.pow(1.3, state.energyLvl));
+      if (type === 'passive') return state.passiveLvl >= 20 ? Infinity : Math.floor(220 * Math.pow(1.3, state.passiveLvl));
       return 0;
     }
 
@@ -1518,35 +1270,25 @@
       if (state.score < cost) return;
       state.score -= cost;
 
-      if (type === 'multiClick') {
-        state.multiClickLvl = (state.multiClickLvl || 0) + 1;
-        addLog(`Мульти-клик улучшен (ур. ${state.multiClickLvl})`);
-      }
-      else if (type === 'cooldown') { 
+      if (type === 'cooldown') { 
         state.cooldownLvl++; 
         state.cooldownMs = state.cooldownLvl === 10 ? 0 : 200 - state.cooldownLvl * 20; 
-        addLog(`Улучшен кулдаун (ур. ${state.cooldownLvl})`);
+        addLog(`Улучшен кулдаун (уровень ${state.cooldownLvl}) за ${cost} DP`);
       }
       else if (type === 'click') { 
         state.clickPower++; 
-        addLog(`Сила клика +1`);
+        addLog(`Улучшена сила клика (+${state.clickPower}) за ${cost} DP`);
       }
       else if (type === 'maxEnergy') { 
         state.energyLvl++; 
         state.maxEnergy += 25; 
         state.currentEnergy += 25; 
-        addLog(`Макс. энергия +25`);
-      }
-      else if (type === 'regen') {
-        state.regenLvl++;
-        state.regenIntervalMs = Math.max(1000, 3000 - state.regenLvl * 200);
-        startEnergyRegenLoop();
-        addLog(`Ускорена регенерация энергии до ${(state.regenIntervalMs/1000).toFixed(1)}с`);
+        addLog(`Увеличен максимум энергии (${state.maxEnergy}) за ${cost} DP`);
       }
       else if (type === 'passive') { 
         state.passiveLvl++; 
         state.dps = state.passiveLvl * 2; 
-        addLog(`Пассивный фокус +2 DP/с`);
+        addLog(`Улучшен пассивный фокус (+${state.dps} DP/с) за ${cost} DP`);
       }
 
       updateUI();
@@ -1555,14 +1297,14 @@
 
     function buyBoost() {
       if (boostTimeLeft > 0) return;
-      if (state.score < 1000) {
-        showToast('Недостаточно очков DP!');
+      if (state.score < 1500) {
+        showToast(t('toast_no_dp'));
         return;
       }
-      state.score -= 1000;
+      state.score -= 1500;
       state.boostMultiplier = 2;
       boostTimeLeft = 30;
-      addLog('Куплен буст 2x');
+      addLog(`Куплен буст 2x за 1500 DP`);
 
       const boostBtn = document.getElementById('boost-buy-btn');
       if (boostBtn) {
@@ -1578,7 +1320,7 @@
           state.boostMultiplier = 1;
           if (boostBtn) {
             boostBtn.disabled = false;
-            boostBtn.innerText = '1 000 DP';
+            boostBtn.innerText = '1 500 DP';
           }
           updateUI();
         } else {
@@ -1600,38 +1342,28 @@
     }
 
     function updateUpgradesUI() {
-      const multiCost = getUpgradeCost('multiClick');
-      const multiBtn = document.getElementById('upg-multiclick-btn');
-      document.getElementById('upg-multiclick-desc').innerText = `Клик за тап: ${1 + (state.multiClickLvl || 0)}`;
-      document.getElementById('upg-multiclick-lvl').innerText = `Уровень: ${state.multiClickLvl || 0} / 10`;
-      if ((state.multiClickLvl || 0) >= 10) {
-        multiBtn.innerText = 'MAX';
-        multiBtn.disabled = true;
-      } else {
-        multiBtn.innerText = `${multiCost.toLocaleString('ru-RU')} DP`;
-        multiBtn.disabled = state.score < multiCost;
-      }
-
+      // 1. Cooldown
       const cdCost = getUpgradeCost('cooldown');
       const cdBtn = document.getElementById('upg-cooldown-btn');
       const cdDesc = document.getElementById('upg-cooldown-desc');
       const cdLvl = document.getElementById('upg-cooldown-lvl');
       if (state.cooldownLvl >= 10) {
-        cdDesc.innerText = 'Кулдаун отключен (0мс)';
-        cdLvl.innerText = 'Уровень: МАКС (10/10)';
+        cdDesc.innerText = t('cd_off');
+        cdLvl.innerText = `${t('level_max')} (10/10)`;
         cdBtn.innerText = 'MAX';
         cdBtn.disabled = true;
       } else {
-        cdDesc.innerText = `Задержка: ${state.cooldownMs}мс`;
-        cdLvl.innerText = `Уровень: ${state.cooldownLvl} / 10`;
+        cdDesc.innerText = `${t('delay_fmt')}${state.cooldownMs}${t('ms_fmt')}`;
+        cdLvl.innerText = `${t('level_fmt')}${state.cooldownLvl} / 10`;
         cdBtn.innerText = `${cdCost.toLocaleString('ru-RU')} DP`;
         cdBtn.disabled = state.score < cdCost;
       }
 
+      // 2. Click Power
       const clickCost = getUpgradeCost('click');
       const clickBtn = document.getElementById('upg-click-btn');
-      document.getElementById('upg-click-desc').innerText = `Очков за клик: +${state.clickPower}`;
-      document.getElementById('upg-click-lvl').innerText = `Уровень: ${state.clickPower} / 20`;
+      document.getElementById('upg-click-desc').innerText = `${t('click_fmt')}${state.clickPower}`;
+      document.getElementById('upg-click-lvl').innerText = `${t('level_fmt')}${state.clickPower} / 20`;
       if (state.clickPower >= 20) {
         clickBtn.innerText = 'MAX';
         clickBtn.disabled = true;
@@ -1640,10 +1372,11 @@
         clickBtn.disabled = state.score < clickCost;
       }
 
+      // 3. Max Energy
       const nrgCost = getUpgradeCost('maxEnergy');
       const nrgBtn = document.getElementById('upg-energy-btn');
-      document.getElementById('upg-energy-desc').innerText = `Макс. энергия: ${state.maxEnergy}`;
-      document.getElementById('upg-energy-lvl').innerText = `Уровень: ${state.energyLvl} / 20`;
+      document.getElementById('upg-energy-desc').innerText = `${t('max_nrg_fmt')}${state.maxEnergy}`;
+      document.getElementById('upg-energy-lvl').innerText = `${t('level_fmt')}${state.energyLvl} / 20`;
       if (state.energyLvl >= 20) {
         nrgBtn.innerText = 'MAX';
         nrgBtn.disabled = true;
@@ -1652,22 +1385,11 @@
         nrgBtn.disabled = state.score < nrgCost;
       }
 
-      const regenCost = getUpgradeCost('regen');
-      const regenBtn = document.getElementById('upg-regen-btn');
-      document.getElementById('upg-regen-desc').innerText = `Интервал: ${(state.regenIntervalMs/1000).toFixed(1)}с`;
-      document.getElementById('upg-regen-lvl').innerText = `Уровень: ${state.regenLvl} / 10`;
-      if (state.regenLvl >= 10) {
-        regenBtn.innerText = 'MAX';
-        regenBtn.disabled = true;
-      } else {
-        regenBtn.innerText = `${regenCost.toLocaleString('ru-RU')} DP`;
-        regenBtn.disabled = state.score < regenCost;
-      }
-
+      // 4. Passive Focus
       const passCost = getUpgradeCost('passive');
       const passBtn = document.getElementById('upg-passive-btn');
-      document.getElementById('upg-passive-desc').innerText = `+${state.passiveLvl * 2} DP в секунду`;
-      document.getElementById('upg-passive-lvl').innerText = `Уровень: ${state.passiveLvl} / 20`;
+      document.getElementById('upg-passive-desc').innerText = `+${state.passiveLvl * 2}${t('pass_fmt')}`;
+      document.getElementById('upg-passive-lvl').innerText = `${t('level_fmt')}${state.passiveLvl} / 20`;
       if (state.passiveLvl >= 20) {
         passBtn.innerText = 'MAX';
         passBtn.disabled = true;
@@ -1712,19 +1434,30 @@
 
     function manualSave() {
       if (manualSaveCooldown > 0) return;
+
       saveToCloud();
       startAutoSaveTimer();
 
       manualSaveCooldown = 30;
       const btn = document.getElementById('manual-save-btn');
-      if (btn) btn.disabled = true;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = `${t('btn_save')} (${manualSaveCooldown}s)`;
+      }
 
       if (manualSaveTimerInterval) clearInterval(manualSaveTimerInterval);
       manualSaveTimerInterval = setInterval(() => {
         manualSaveCooldown--;
         if (manualSaveCooldown <= 0) {
           clearInterval(manualSaveTimerInterval);
-          if (btn) btn.disabled = false;
+          if (btn) {
+            btn.disabled = false;
+            btn.innerText = t('btn_save');
+          }
+        } else {
+          if (btn) {
+            btn.innerText = `${t('btn_save')} (${manualSaveCooldown}s)`;
+          }
         }
       }, 1000);
     }
@@ -1732,20 +1465,33 @@
     function saveSettings() {
       state.volume = parseInt(document.getElementById('volume-range').value) / 100;
       state.clickSoundEnabled = document.getElementById('toggle-click-sound').checked;
-      state.enableAnimations = document.getElementById('toggle-anim').checked;
-      state.simplifiedStyle = document.getElementById('toggle-simplified').checked;
+      state.disableAnimations = document.getElementById('toggle-anim').checked;
+      state.simplifiedStyle = document.getElementById('toggle-simple').checked;
 
-      toggleSimplifiedStyle(state.simplifiedStyle);
+      applySettings();
       saveToCloud();
       closeModal('settings-modal');
-      showToast('Настройки сохранены');
+      showToast(t('toast_settings_saved'));
     }
 
     function applySettings() {
+      if (state.disableAnimations) {
+        document.body.classList.add('no-animations');
+      } else {
+        document.body.classList.remove('no-animations');
+      }
+
+      if (state.simplifiedStyle) {
+        document.body.classList.remove('dark-purple-bg');
+        document.body.style.backgroundColor = '#120524';
+      } else {
+        document.body.classList.add('dark-purple-bg');
+        document.body.style.backgroundColor = '';
+      }
     }
 
     function resetProgress() {
-      if (confirm('Сбросить прогресс?')) {
+      if (confirm('Reset progress? / Сбросить прогресс?')) {
         localStorage.clear();
         location.reload();
       }
@@ -1767,17 +1513,21 @@
         document.getElementById('volume-range').value = volPercent;
         document.getElementById('volume-val').innerText = `${volPercent}%`;
         document.getElementById('toggle-click-sound').checked = state.clickSoundEnabled;
-        document.getElementById('toggle-anim').checked = state.enableAnimations;
-        document.getElementById('toggle-simplified').checked = state.simplifiedStyle;
+        document.getElementById('toggle-anim').checked = state.disableAnimations;
+        document.getElementById('toggle-simple').checked = state.simplifiedStyle;
         const langSel = document.getElementById('setting-lang-select');
         if (langSel) langSel.value = state.lang;
-      }
-      if (id === 'transfer-modal' || id === 'friends-modal') {
-        updateFriendsUI();
       }
     }
 
     function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.remove('opacity-0', 'translate-y-4');
+      setTimeout(() => toast.classList.add('opacity-0', 'translate-y-4'), 2500);
+    }
   </script>
 </body>
 </html>
