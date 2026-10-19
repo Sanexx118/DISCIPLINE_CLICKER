@@ -436,6 +436,7 @@
       <div class="flex gap-2 my-2.5 p-1 bg-purple-950/60 rounded-xl border border-purple-800/40 text-xs">
         <button id="shop-tab-boosts" onclick="switchShopTab('boosts')" data-i18n="shop_tab_boosts" class="flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all">Бусты</button>
         <button id="shop-tab-skins" onclick="switchShopTab('skins')" data-i18n="shop_tab_skins" class="flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all">Скины</button>
+        <button id="shop-tab-roles" onclick="switchShopTab('roles')" class="flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all">Роли Discord</button>
       </div>
       <div class="flex-1 overflow-y-auto py-2 space-y-3 no-scrollbar text-xs">
         <div id="shop-section-boosts" class="space-y-2.5">
@@ -480,6 +481,12 @@
               </div>
             </div>
             <button id="skin-btn-stalin" onclick="handleSkinAction('resurs/STALIN.png', 2000)" class="px-3 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px]">2 000 DP</button>
+          </div>
+        </div>
+
+        <div id="shop-section-roles" class="hidden space-y-2.5">
+          <div id="roles-list-container" class="space-y-2.5">
+            <div class="text-center text-purple-400 py-3">Загрузка ролей...</div>
           </div>
         </div>
       </div>
@@ -680,6 +687,8 @@
       unlockedSkins: ['resurs/eskere.png'],
       friends: [],
       friendRequests: [],
+      boughtRoles: [],
+      pendingRolesToGive: [],
       lastOnlineTime: Date.now(),
       lang: 'ru',
       logs: []
@@ -1097,6 +1106,9 @@
                 state.friends = remoteData.friends;
                 updateFriendsUI();
               }
+              if (remoteData.boughtRoles) {
+                state.boughtRoles = remoteData.boughtRoles;
+              }
               if (remoteData.logs && remoteData.logs.length > state.logs.length) {
                 const latestLog = remoteData.logs[0];
                 state.logs = remoteData.logs;
@@ -1481,14 +1493,19 @@
     function switchShopTab(tab) {
       const boostsSec = document.getElementById('shop-section-boosts');
       const skinsSec = document.getElementById('shop-section-skins');
+      const rolesSec = document.getElementById('shop-section-roles');
+      
       const boostsTab = document.getElementById('shop-tab-boosts');
       const skinsTab = document.getElementById('shop-tab-skins');
+      const rolesTab = document.getElementById('shop-tab-roles');
 
       boostsSec.classList.add('hidden');
       skinsSec.classList.add('hidden');
+      rolesSec.classList.add('hidden');
 
       boostsTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
       skinsTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
+      rolesTab.className = 'flex-1 py-1.5 font-bold rounded-lg text-purple-300 hover:bg-purple-900/50 transition-all';
 
       if (tab === 'boosts') {
         boostsSec.classList.remove('hidden');
@@ -1496,7 +1513,73 @@
       } else if (tab === 'skins') {
         skinsSec.classList.remove('hidden');
         skinsTab.className = 'flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all';
+      } else if (tab === 'roles') {
+        rolesSec.classList.remove('hidden');
+        rolesTab.className = 'flex-1 py-1.5 font-bold rounded-lg bg-purple-600 text-white transition-all';
+        fetchAndRenderShopRoles();
       }
+    }
+
+    async function fetchAndRenderShopRoles() {
+      const container = document.getElementById('roles-list-container');
+      if (!container) return;
+
+      container.innerHTML = '<div class="text-center text-purple-400 py-3">Загрузка ролей...</div>';
+
+      const { data, error } = await supabaseClient
+        .from('shop_roles')
+        .select('*')
+        .eq('is_available', true);
+
+      if (error || !data || data.length === 0) {
+        container.innerHTML = '<div class="text-center text-purple-400 py-3">Нет доступных ролей для покупки</div>';
+        return;
+      }
+
+      let html = '';
+      data.forEach(r => {
+        const isBought = (state.boughtRoles && state.boughtRoles.includes(r.role_id)) || 
+                         (state.pendingRolesToGive && state.pendingRolesToGive.includes(r.role_id));
+        const canAfford = state.score >= r.price;
+
+        html += `
+          <div class="bg-purple-950/40 p-2.5 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-2">
+            <div>
+              <h3 class="font-bold text-purple-100 text-xs">Роль: ${r.role_name}</h3>
+              <p class="text-[9px] text-purple-300/80">Выдается на Discord сервере</p>
+            </div>
+            <button 
+              onclick="buyDiscordRole('${r.role_id}', ${r.price}, '${r.role_name}')" 
+              class="px-3 py-1.5 ${isBought ? 'bg-emerald-600' : 'bg-purple-600 hover:bg-purple-500'} text-white font-bold rounded-xl text-xs disabled:opacity-50 cursor-pointer"
+              ${isBought || !canAfford ? 'disabled' : ''}>
+              ${isBought ? 'Куплено' : `${r.price.toLocaleString('ru-RU')} DP`}
+            </button>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    async function buyDiscordRole(roleId, price, roleName) {
+      if (state.score < price) {
+        showToast('Недостаточно очков DP!');
+        return;
+      }
+
+      state.score -= price;
+      
+      if (!state.pendingRolesToGive) state.pendingRolesToGive = [];
+      if (!state.pendingRolesToGive.includes(roleId)) {
+        state.pendingRolesToGive.push(roleId);
+      }
+
+      addLog(`Куплена Discord-роль "${roleName}" за ${price} DP`);
+      showToast(`Роль "${roleName}" куплена! Бот скоро выдаст её на сервере.`);
+
+      updateUI();
+      fetchAndRenderShopRoles();
+      await saveToCloud();
     }
 
     function handleSkinAction(path, price) {
