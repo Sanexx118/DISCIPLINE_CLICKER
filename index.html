@@ -482,6 +482,18 @@
             </div>
             <button id="skin-btn-stalin" onclick="handleSkinAction('resurs/STALIN.png', 2000)" class="px-3 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px]">2 000 DP</button>
           </div>
+
+          <!-- Новый скин FEMBOY -->
+          <div class="bg-purple-950/40 p-2.5 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2.5">
+              <img src="resurs/FEMBOY.png" alt="Preview" class="w-8 h-8 rounded-lg object-cover border border-purple-500/50" onerror="handleImageError(this)">
+              <div>
+                <h3 class="font-bold text-purple-100 text-xs">Фембой</h3>
+                <p class="text-[9px] text-amber-400 font-semibold">+75% к клику</p>
+              </div>
+            </div>
+            <button id="skin-btn-femboy" onclick="handleSkinAction('resurs/FEMBOY.png', 5000)" class="px-3 py-1 bg-purple-600 text-white font-bold rounded-lg text-[10px]">5 000 DP</button>
+          </div>
         </div>
 
         <div id="shop-section-roles" class="hidden space-y-2.5">
@@ -694,6 +706,7 @@
       logs: []
     };
 
+    let roleBuffsCache = {};
     let lastClickTime = 0;
     let autoSaveTimeLeft = 60;
     let autoSaveTimerInterval = null;
@@ -770,7 +783,27 @@
     function getSkinMultiplier(path) {
       if (path === 'resurs/eskerebeszybik.png') return 1.25;
       if (path === 'resurs/STALIN.png') return 1.50;
+      if (path === 'resurs/FEMBOY.png') return 1.75;
       return 1.0;
+    }
+
+    function getRolesMultiplier() {
+      let clickBuffSum = 0;
+      let passiveBuffSum = 0;
+
+      if (state.boughtRoles && state.boughtRoles.length > 0) {
+        state.boughtRoles.forEach(rId => {
+          if (roleBuffsCache[rId]) {
+            clickBuffSum += roleBuffsCache[rId].click_buff_percent || 0;
+            passiveBuffSum += roleBuffsCache[rId].passive_buff_percent || 0;
+          }
+        });
+      }
+
+      return {
+        clickMult: 1 + (clickBuffSum / 100),
+        passiveMult: 1 + (passiveBuffSum / 100)
+      };
     }
 
     window.addEventListener('load', async () => {
@@ -808,6 +841,7 @@
 
       try {
         await loadFromCloud();
+        await preloadRoleBuffs();
       } catch (e) {}
 
       clearTimeout(safetyTimeout);
@@ -820,11 +854,14 @@
           state.currentEnergy = Math.min(state.maxEnergy, state.currentEnergy + recovered);
         }
 
-        const dps = (state.passiveLvl || 0) * 2;
-        if (secondsPassed > 5 && dps > 0) {
+        const roleMults = getRolesMultiplier();
+        const baseDps = (state.passiveLvl || 0) * 2;
+        const effectiveDps = Math.round(baseDps * roleMults.passiveMult);
+
+        if (secondsPassed > 5 && effectiveDps > 0) {
           const maxOfflineSeconds = 86400;
           const actualSeconds = Math.min(secondsPassed, maxOfflineSeconds);
-          pendingOfflineEarned = actualSeconds * dps;
+          pendingOfflineEarned = actualSeconds * effectiveDps;
         }
       }
 
@@ -841,6 +878,15 @@
 
       setInterval(fetchLeaderboard, 10000);
     });
+
+    async function preloadRoleBuffs() {
+      const { data } = await supabaseClient.from('shop_roles').select('*');
+      if (data) {
+        data.forEach(r => {
+          roleBuffsCache[r.role_id] = r;
+        });
+      }
+    }
 
     async function checkDiscordAuth() {
       const fragment = new URLSearchParams(window.location.hash.substring(1));
@@ -1358,7 +1404,9 @@
       state.currentEnergy -= multiClicksCount;
 
       const skinMult = getSkinMultiplier(state.currentSkin);
-      const gainedPerSingleClick = Math.round(state.clickPower * state.boostMultiplier * skinMult);
+      const roleMults = getRolesMultiplier();
+
+      const gainedPerSingleClick = Math.round(state.clickPower * state.boostMultiplier * skinMult * roleMults.clickMult);
       const totalGained = gainedPerSingleClick * multiClicksCount;
       state.score += totalGained;
 
@@ -1538,15 +1586,22 @@
 
       let html = '';
       data.forEach(r => {
+        roleBuffsCache[r.role_id] = r;
+
         const isBought = (state.boughtRoles && state.boughtRoles.includes(r.role_id)) || 
                          (state.pendingRolesToGive && state.pendingRolesToGive.includes(r.role_id));
         const canAfford = state.score >= r.price;
+
+        let buffText = [];
+        if (r.click_buff_percent > 0) buffText.push(`+${r.click_buff_percent}% клик`);
+        if (r.passive_buff_percent > 0) buffText.push(`+${r.passive_buff_percent}% пассив`);
+        const buffStr = buffText.length > 0 ? ` (${buffText.join(', ')})` : '';
 
         html += `
           <div class="bg-purple-950/40 p-2.5 rounded-2xl border border-purple-800/50 flex justify-between items-center gap-2">
             <div>
               <h3 class="font-bold text-purple-100 text-xs">Роль: ${r.role_name}</h3>
-              <p class="text-[9px] text-purple-300/80">Выдается на Discord сервере</p>
+              <p class="text-[9px] text-amber-300 font-semibold">Выдается на сервере${buffStr}</p>
             </div>
             <button 
               onclick="buyDiscordRole('${r.role_id}', ${r.price}, '${r.role_name}')" 
@@ -1608,7 +1663,8 @@
       const skins = [
         { id: 'skin-btn-eskere', path: 'resurs/eskere.png', price: 0 },
         { id: 'skin-btn-bezzybik', path: 'resurs/eskerebeszybik.png', price: 500 },
-        { id: 'skin-btn-stalin', path: 'resurs/STALIN.png', price: 2000 }
+        { id: 'skin-btn-stalin', path: 'resurs/STALIN.png', price: 2000 },
+        { id: 'skin-btn-femboy', path: 'resurs/FEMBOY.png', price: 5000 }
       ];
 
       skins.forEach(s => {
@@ -1716,8 +1772,11 @@
 
     function startPassiveIncome() {
       setInterval(() => {
-        if (state.dps > 0) {
-          state.score += state.dps;
+        const roleMults = getRolesMultiplier();
+        const baseDps = state.dps * state.boostMultiplier;
+        const effectiveDps = Math.round(baseDps * roleMults.passiveMult);
+        if (effectiveDps > 0) {
+          state.score += effectiveDps;
           updateUI();
         }
       }, 1000);
@@ -1803,7 +1862,11 @@
 
     function updateUI() {
       document.getElementById('score-display').innerText = Math.floor(state.score).toLocaleString('ru-RU');
-      document.getElementById('dps-display').innerText = `+${state.dps * state.boostMultiplier} DP/с`;
+
+      const roleMults = getRolesMultiplier();
+      const baseDps = state.dps * state.boostMultiplier;
+      const effectiveDps = Math.round(baseDps * roleMults.passiveMult);
+      document.getElementById('dps-display').innerText = `+${effectiveDps} DP/с`;
       
       const clickerImg = document.getElementById('main-clicker-img');
       if (clickerImg && state.currentSkin) {
